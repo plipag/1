@@ -507,7 +507,7 @@
           <div class="relative"><input type="text" id="inputCategoria" list="listaCategoriasForm" onfocus="atualizarListaCategoriasForm()" autocomplete="off" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 pr-9 text-sm"><button type="button" onclick="limparCampoForm('inputCategoria')" tabindex="-1" aria-label="Limpar" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-circle-xmark"></i></button></div><datalist id="listaCategoriasForm"></datalist>
         </div>
         <div>
-          <label class="block text-xs font-semibold theme-subtext mb-1">Valor (R$)</label>
+          <label id="labelValorForm" class="block text-xs font-semibold theme-subtext mb-1">Valor (R$)</label>
           <div class="relative"><input type="number" step="0.01" inputmode="decimal" id="inputValor" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 pr-9 text-sm"><button type="button" onclick="limparCampoForm('inputValor')" tabindex="-1" aria-label="Limpar" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-circle-xmark"></i></button></div>
         </div>
         <div class="grid grid-cols-2 gap-3">
@@ -527,7 +527,7 @@
         </div>
         <div id="blocoParcelas" class="hidden">
           <label class="block text-xs font-semibold theme-subtext mb-1">Número de parcelas</label>
-          <input type="number" id="inputParcelas" min="1" max="99" step="1" value="1" inputmode="numeric" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+          <input type="number" id="inputParcelas" oninput="atualizarRotuloValor()" min="1" max="99" step="1" value="1" inputmode="numeric" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
         </div>
         <details id="detalhesTextoCupom" class="hidden mt-3 text-xs theme-subtext">
           <summary class="cursor-pointer font-semibold">Ver texto lido do cupom</summary>
@@ -1467,6 +1467,34 @@
       const ehCredito = document.getElementById('inputFormaPagto').value === 'Crédito';
       document.getElementById('blocoParcelas').classList.toggle('hidden', !ehCredito);
       if (!ehCredito) document.getElementById('inputParcelas').value = 1;
+      atualizarRotuloValor();
+    }
+    function atualizarRotuloValor() {
+      const n = parseInt(document.getElementById('inputParcelas').value, 10) || 1;
+      const ehCredito = document.getElementById('inputFormaPagto').value === 'Crédito';
+      document.getElementById('labelValorForm').innerText = (ehCredito && n > 1) ? 'Valor de cada parcela (R$)' : 'Valor (R$)';
+    }
+    // Soma meses mantendo o dia (ajusta para o último dia do mês quando necessário)
+    function somarMesesISO(iso, meses) {
+      const p = iso.split('-').map(Number);
+      const alvo = new Date(p[0], p[1] - 1 + meses, 1);
+      const ultimo = new Date(alvo.getFullYear(), alvo.getMonth() + 1, 0).getDate();
+      alvo.setDate(Math.min(p[2], ultimo));
+      return dataLocalISO(alvo);
+    }
+    // Uma linha por parcela, uma por mês, todas com o valor da parcela
+    function gerarParcelas(d) {
+      const n = d.parcelas;
+      const lista = [];
+      for (let i = 0; i < n; i++) {
+        lista.push(Object.assign({}, d, {
+          id: null,
+          description: `${d.description} (${i + 1}/${n})`,
+          date: somarMesesISO(d.date, i),
+          salvarPadraoLoja: false
+        }));
+      }
+      return lista;
     }
     function textoPagto(t) {
       let fp = normalizarFormaPagto(t.formapagto) || 'Pix';
@@ -1949,7 +1977,7 @@
       };
 
       if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run
+        const runner = google.script.run
           .withSuccessHandler(function() {
             btnSalvar.disabled = false;
             btnSalvar.innerText = "Salvar";
@@ -1962,13 +1990,17 @@
             btnSalvar.disabled = false;
             btnSalvar.innerText = "Salvar";
             exibirToast("Erro ao salvar lançamento.", "erro");
-          })
-          .saveTransaction(dados);
+          });
+        if (dados.id === null && dados.parcelas > 1) runner.importTransactions(gerarParcelas(dados));
+        else runner.saveTransaction(dados);
       } else {
         if (dados.id !== null) {
           const idx = listaTransacoesGlobal.findIndex(item => String(item.id) === String(dados.id));
           if (idx !== -1) listaTransacoesGlobal[idx] = dados;
           else listaTransacoesGlobal.unshift(dados);
+        } else if (dados.parcelas > 1) {
+          const base = new Date().getTime();
+          gerarParcelas(dados).forEach((p, i) => { p.id = String(base + i); listaTransacoesGlobal.unshift(p); });
         } else {
           dados.id = new Date().getTime().toString();
           listaTransacoesGlobal.unshift(dados);
