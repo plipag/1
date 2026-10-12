@@ -510,7 +510,7 @@
           <label id="labelValorForm" class="block text-xs font-semibold theme-subtext mb-1">Valor (R$)</label>
           <div class="relative"><input type="number" step="0.01" inputmode="decimal" id="inputValor" oninput="atualizarRotuloValor()" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 pr-9 text-sm"><button type="button" onclick="limparCampoForm('inputValor')" tabindex="-1" aria-label="Limpar" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-circle-xmark"></i></button></div>
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div id="linhaPagto" class="grid grid-cols-1 gap-3">
           <div>
             <label class="block text-xs font-semibold theme-subtext mb-1">Forma de Pagamento</label>
             <select id="inputFormaPagto" onchange="atualizarCampoParcelas()" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
@@ -520,15 +520,15 @@
               <option value="Débito">Débito</option>
             </select>
           </div>
-          <div>
-            <label class="block text-xs font-semibold theme-subtext mb-1">Instituição</label>
-            <div class="relative"><input type="text" id="inputInstituicao" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 pr-9 text-sm"><button type="button" onclick="limparCampoForm('inputInstituicao')" tabindex="-1" aria-label="Limpar" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-circle-xmark"></i></button></div>
+          <div id="blocoParcelas" class="hidden">
+            <label class="block text-xs font-semibold theme-subtext mb-1">Número de parcelas</label>
+            <input type="number" id="inputParcelas" oninput="atualizarRotuloValor()" min="1" max="99" step="1" value="1" inputmode="numeric" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+            <p id="dicaParcelas" class="text-xs theme-subtext mt-1"></p>
           </div>
         </div>
-        <div id="blocoParcelas" class="hidden">
-          <label class="block text-xs font-semibold theme-subtext mb-1">Número de parcelas</label>
-          <input type="number" id="inputParcelas" oninput="atualizarRotuloValor()" min="1" max="99" step="1" value="1" inputmode="numeric" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
-          <p id="dicaParcelas" class="text-xs theme-subtext mt-1"></p>
+        <div>
+            <label class="block text-xs font-semibold theme-subtext mb-1">Instituição</label>
+            <div class="relative"><input type="text" id="inputInstituicao" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 pr-9 text-sm"><button type="button" onclick="limparCampoForm('inputInstituicao')" tabindex="-1" aria-label="Limpar" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-circle-xmark"></i></button></div>
         </div>
         <details id="detalhesTextoCupom" class="hidden mt-3 text-xs theme-subtext">
           <summary class="cursor-pointer font-semibold">Ver texto lido do cupom</summary>
@@ -1467,6 +1467,9 @@
     function atualizarCampoParcelas() {
       const ehCredito = document.getElementById('inputFormaPagto').value === 'Crédito';
       document.getElementById('blocoParcelas').classList.toggle('hidden', !ehCredito);
+      const linha = document.getElementById('linhaPagto');
+      linha.classList.toggle('grid-cols-2', ehCredito);
+      linha.classList.toggle('grid-cols-1', !ehCredito);
       if (!ehCredito) document.getElementById('inputParcelas').value = 1;
       atualizarRotuloValor();
     }
