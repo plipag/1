@@ -90,6 +90,8 @@
       }
     }
 
+    #inputCategoria::-webkit-calendar-picker-indicator { display: none !important; }
+
     @media print {
       body > *:not(#printAreaContainer) { display: none !important; }
       #printAreaContainer { display: block !important; position: absolute; left: 0; top: 0; width: 100%; background: #ffffff !important; color: #0f172a !important; padding: 20px; box-sizing: border-box; }
@@ -107,6 +109,9 @@
       .print-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
       .print-table th { background-color: #0f172a; color: #ffffff; padding: 8px; text-align: left; text-transform: uppercase; font-size: 10px; }
       .print-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+      .print-table thead { display: table-header-group; }
+      .print-table tr { page-break-inside: avoid; }
+      .print-table .print-repeat-title th { background: #ffffff; color: #0f172a; text-align: center; font-size: 12px; text-transform: none; border-bottom: 2px solid #0f172a; padding: 6px 8px; }
     }
   </style>
 </head>
@@ -480,30 +485,30 @@
       <form id="formTransacao" onsubmit="salvarLancamento(event)" class="space-y-3">
         <input type="hidden" id="inputIdTransacao" value="">
         <input type="hidden" id="inputVemDeScan" value="false">
-        <div>
-          <label class="block text-xs font-semibold theme-subtext mb-1">Tipo</label>
-          <select id="inputTipo" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
-            <option value="Receita">Receita (Entrada)</option>
-            <option value="Despesa" selected>Despesa (Saída)</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold theme-subtext mb-1">Descrição</label>
-          <input type="text" id="inputDescricao" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold theme-subtext mb-1">Categoria</label>
-          <input type="text" id="inputCategoria" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
-        </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-semibold theme-subtext mb-1">Valor (R$)</label>
-            <input type="number" step="0.01" id="inputValor" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+            <label class="block text-xs font-semibold theme-subtext mb-1">Tipo</label>
+            <select id="inputTipo" onchange="aoMudarTipoLancamento()" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+              <option value="Receita">Receita (Entrada)</option>
+              <option value="Despesa" selected>Despesa (Saída)</option>
+            </select>
           </div>
           <div>
             <label class="block text-xs font-semibold theme-subtext mb-1">Data</label>
             <input type="date" id="inputData" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
           </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold theme-subtext mb-1">Descrição</label>
+          <div class="relative"><input type="text" id="inputDescricao" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 pr-9 text-sm"><button type="button" onclick="limparCampoForm('inputDescricao')" tabindex="-1" aria-label="Limpar" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-circle-xmark"></i></button></div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold theme-subtext mb-1">Categoria</label>
+          <div class="relative"><input type="text" id="inputCategoria" list="listaCategoriasForm" onfocus="atualizarListaCategoriasForm()" autocomplete="off" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 pr-9 text-sm"><button type="button" onclick="limparCampoForm('inputCategoria')" tabindex="-1" aria-label="Limpar" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-circle-xmark"></i></button></div><datalist id="listaCategoriasForm"></datalist>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold theme-subtext mb-1">Valor (R$)</label>
+          <div class="relative"><input type="number" step="0.01" inputmode="decimal" id="inputValor" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 pr-9 text-sm"><button type="button" onclick="limparCampoForm('inputValor')" tabindex="-1" aria-label="Limpar" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-circle-xmark"></i></button></div>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -517,7 +522,7 @@
           </div>
           <div>
             <label class="block text-xs font-semibold theme-subtext mb-1">Instituição</label>
-            <input type="text" id="inputInstituicao" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+            <div class="relative"><input type="text" id="inputInstituicao" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 pr-9 text-sm"><button type="button" onclick="limparCampoForm('inputInstituicao')" tabindex="-1" aria-label="Limpar" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-circle-xmark"></i></button></div>
           </div>
         </div>
         <details id="detalhesTextoCupom" class="hidden mt-3 text-xs theme-subtext">
@@ -581,7 +586,7 @@
       <!-- Campo oculto até o usuário começar a falar (o teclado precisa dele para ditar).
            Ao tocar na seta de envio do teclado, o formulário do lançamento já abre preenchido. -->
       <form id="areaFraseVoz" onsubmit="event.preventDefault(); processarFraseDigitada(); return false;" class="absolute opacity-0 pointer-events-none w-px h-px overflow-hidden">
-        <input type="text" id="inputFraseVoz" aria-label="Lançamento por voz" enterkeyhint="send" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" oninput="mostrarCampoVoz()" class="flex-1 min-w-0 bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+        <textarea id="inputFraseVoz" rows="1" aria-label="Lançamento por voz" enterkeyhint="send" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" oninput="mostrarCampoVoz()" class="flex-1 min-w-0 bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm resize-none overflow-hidden break-words" style="max-height:8rem"></textarea>
       </form>
     </div>
   </div>
@@ -1439,12 +1444,51 @@
           <div class="print-chart-box"><h4>Tendência</h4>${imgTendBase64 ? `<img src="${imgTendBase64}" class="print-chart-img" />` : ''}</div>
         </div>
         <table class="print-table">
-          <thead><tr><th>Tipo</th><th>Descrição</th><th>Categoria</th><th>Data</th><th style="text-align: right;">Valor</th><th>Pagto</th></tr></thead>
+          <thead><tr class="print-repeat-title"><th colspan="6">PliPag - Relatório Financeiro &nbsp;|&nbsp; ${periodoTxt}</th></tr><tr><th>Tipo</th><th>Descrição</th><th>Categoria</th><th>Data</th><th style="text-align: right;">Valor</th><th>Pagto</th></tr></thead>
           <tbody>${tabelaRows || '<tr><td colspan="6" style="text-align:center;">Nenhum registro.</td></tr>'}</tbody>
         </table>
       `;
 
       setTimeout(() => { window.print(); }, 300);
+    }
+
+    function limparCampoForm(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.value = '';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.focus();
+    }
+
+    // Categorias ligadas ao tipo (Receita/Despesa): padrões + as já usadas nesse tipo
+    const CATEGORIAS_BASE_TIPO = {
+      despesa: ['Alimentação', 'Transporte', 'Moradia', 'Saúde', 'Higiene / Farmácia', 'Educação', 'Vestuário', 'Lazer', 'Outros'],
+      receita: ['Salário', 'Receitas', 'Rendimentos', 'Freelance', 'Vendas', 'Outros']
+    };
+    function categoriasDoTipo(tipo) {
+      const chave = String(tipo || '').trim().toLowerCase() === 'receita' ? 'receita' : 'despesa';
+      const lista = CATEGORIAS_BASE_TIPO[chave].slice();
+      const vistos = {}; lista.forEach(c => vistos[c.toLowerCase()] = true);
+      (listaTransacoesGlobal || []).forEach(t => {
+        const tt = String(t.type || '').trim().toLowerCase() === 'receita' ? 'receita' : 'despesa';
+        const c = String(t.category || '').trim();
+        if (tt === chave && c && !vistos[c.toLowerCase()]) { vistos[c.toLowerCase()] = true; lista.push(c); }
+      });
+      return lista.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }
+    function atualizarListaCategoriasForm() {
+      const dl = document.getElementById('listaCategoriasForm');
+      if (!dl) return;
+      dl.innerHTML = '';
+      categoriasDoTipo(document.getElementById('inputTipo').value).forEach(c => {
+        const o = document.createElement('option'); o.value = c; dl.appendChild(o);
+      });
+    }
+    function aoMudarTipoLancamento() {
+      atualizarListaCategoriasForm();
+      const campo = document.getElementById('inputCategoria');
+      const atual = campo.value.trim().toLowerCase();
+      if (atual && !categoriasDoTipo(document.getElementById('inputTipo').value).some(c => c.toLowerCase() === atual)) campo.value = '';
     }
 
     function abrirModalNovaTransacao() {
@@ -1455,6 +1499,7 @@
       definirModoVozFormulario(false);
       document.getElementById('modalTransacao').classList.remove('hidden');
       document.getElementById('inputData').value = dataLocalISO();
+      atualizarListaCategoriasForm();
       const detCupom = document.getElementById('detalhesTextoCupom'); if (detCupom) detCupom.classList.add('hidden');
     }
 
@@ -2171,12 +2216,15 @@
       const area = document.getElementById('areaFraseVoz');
       if (!campo || !area || !campo.value.trim()) return;
       area.className = 'flex gap-2 mt-4 text-left';
+      campo.style.height = 'auto';
+      campo.style.height = Math.min(campo.scrollHeight, 128) + 'px';
+      campo.style.overflowY = campo.scrollHeight > 128 ? 'auto' : 'hidden';
     }
 
     function resetarCampoVoz() {
       const campo = document.getElementById('inputFraseVoz');
       const area = document.getElementById('areaFraseVoz');
-      if (campo) campo.value = '';
+      if (campo) { campo.value = ''; campo.style.height = 'auto'; }
       if (area) area.className = CLASSE_CAMPO_VOZ_OCULTO;
       const textoOrientacao = document.getElementById('textoVozOrientacao');
       if (textoOrientacao) textoOrientacao.classList.remove('hidden');
@@ -2352,7 +2400,7 @@
       const campo = document.getElementById('inputFraseVoz');
       const texto = campo ? campo.value.trim() : '';
       if (!texto) { exibirToast("Toque em Iniciar Voz e fale o lançamento pelo microfone do teclado.", "erro"); return; }
-      campo.value = '';
+      campo.value = ''; campo.style.height = 'auto';
       processarFraseComando(texto);
     }
 
