@@ -448,7 +448,7 @@
   <!-- Modal Nova Transação -->
   <div id="modalTransacao" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
     <div class="glass-panel w-full max-w-md p-6 rounded-2xl border border-slate-700 relative max-h-[90vh] overflow-y-auto">
-      <button onclick="cancelarModalTransacao()" class="absolute top-4 right-4 theme-subtext hover:text-emerald-500"><i class="fa-solid fa-xmark text-lg"></i></button>
+      <button onclick="fecharXModalTransacao()" class="absolute top-4 right-4 theme-subtext hover:text-emerald-500"><i class="fa-solid fa-xmark text-lg"></i></button>
       <h3 id="modalTransacaoTitulo" class="text-lg font-bold mb-4 theme-text">Nova Transação</h3>
       <form id="formTransacao" onsubmit="salvarLancamento(event)" class="space-y-3">
         <input type="hidden" id="inputIdTransacao" value="">
@@ -1310,10 +1310,20 @@
     }
 
     // Cancelar: se o formulário veio do comando de voz, volta para a tela de voz para falar de novo
-    function cancelarModalTransacao() {
+    function fecharXModalTransacao() {
       const voltarParaVoz = formularioPorVoz;
       fecharModalNovaTransacao();
       if (voltarParaVoz) abrirModalVoz();
+    }
+
+    // Cancelar: em lançamento novo digitado/digitalizado, limpa os campos e permanece na tela
+    // para uma nova digitalização. Na edição e no fluxo por voz, mantém o comportamento anterior.
+    function cancelarModalTransacao() {
+      const idAtual = document.getElementById('inputIdTransacao').value;
+      if (formularioPorVoz || idAtual !== "") { fecharXModalTransacao(); return; }
+      abrirModalNovaTransacao();
+      const preCupom = document.getElementById('textoCupomLido');
+      if (preCupom) preCupom.innerText = '';
     }
 
     function fecharModalNovaTransacao() {
