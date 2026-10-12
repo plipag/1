@@ -602,6 +602,21 @@
       const API_URL = 'https://script.google.com/macros/s/AKfycbwWRnlTfspRLiCKRd_qKGWTEDT2rHZk0FVS6fkP6XpiOkAgk7Ns_DtNcCmu4DEvcIvJFQ/exec';
       let tokenSessao = '';
 
+      // Identificador aleatório deste aparelho (guardado no navegador): o servidor usa para não deixar
+      // que tentativas erradas de outras pessoas bloqueiem o seu acesso.
+      function idDispositivo() {
+        try {
+          let id = localStorage.getItem('plipag_device');
+          if (!id || !/^[A-Za-z0-9-]{16,64}$/.test(id)) {
+            id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+              : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
+            id = id.replace(/[^A-Za-z0-9-]/g, '').padEnd(16, '0').slice(0, 64);
+            localStorage.setItem('plipag_device', id);
+          }
+          return id;
+        } catch (e) { return ''; }
+      }
+
       function chamarApi(fn, args) {
         return fetch(API_URL, {
           method: 'POST',
@@ -622,6 +637,7 @@
             if (typeof nome !== 'string') return undefined;
             return function() {
               const args = Array.prototype.slice.call(arguments).map(function(a) { return a === undefined ? null : a; });
+              if (nome === 'autenticarUsuario') args.push(idDispositivo());
               chamarApi(nome, args).then(function(res) {
                 if (nome === 'autenticarUsuario' && res && res.token) { tokenSessao = res.token; delete res.token; }
                 if (nome === 'logoutUsuario') tokenSessao = '';
