@@ -377,7 +377,12 @@
       </div>
 
       <div class="pt-3 border-t border-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <button onclick="exportarCSV()" class="px-3.5 py-2 bg-emerald-600 text-white font-semibold text-xs rounded-xl flex items-center gap-1.5 shrink-0"><i class="fa-solid fa-file-csv text-sm"></i><span>CSV</span></button>
+        <div class="flex items-center gap-2 shrink-0">
+          <button onclick="exportarCSV()" class="px-3.5 py-2 bg-emerald-600 text-white font-semibold text-xs rounded-xl flex items-center gap-1.5 shrink-0"><i class="fa-solid fa-file-export text-sm"></i><span>Exportar</span></button>
+          <button onclick="document.getElementById('inputImportarCSV').click()" class="px-3.5 py-2 bg-sky-600 text-white font-semibold text-xs rounded-xl flex items-center gap-1.5 shrink-0"><i class="fa-solid fa-file-import text-sm"></i><span>Importar</span></button>
+          <button onclick="abrirModalLimparLancamentos()" class="px-3.5 py-2 bg-rose-600 text-white font-semibold text-xs rounded-xl flex items-center gap-1.5 shrink-0"><i class="fa-solid fa-trash-can text-sm"></i><span>Limpar</span></button>
+          <input type="file" id="inputImportarCSV" accept=".csv,text/csv,text/plain" class="hidden" onchange="importarCSV(this)">
+        </div>
         <div id="totalRegistrosFooter" class="text-xs theme-subtext font-medium">Total de registros: 0</div>
       </div>
     </div>
@@ -440,6 +445,21 @@
       <div class="flex items-center justify-center gap-3">
         <button onclick="fecharModalConfirmacaoExclusao()" class="w-1/2 py-2.5 bg-slate-800 text-white text-xs font-semibold rounded-xl border border-slate-700">Cancelar</button>
         <button id="btnConfirmarExclusaoModal" class="w-1/2 py-2.5 bg-rose-600 text-white text-xs font-semibold rounded-xl">Sim, Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL LIMPAR LANÇAMENTOS -->
+  <div id="modalLimparLancamentos" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="glass-panel w-full max-w-sm p-6 rounded-2xl border border-rose-500/30 text-center">
+      <div class="w-14 h-14 rounded-full bg-rose-500/20 text-rose-500 mx-auto flex items-center justify-center text-2xl mb-3"><i class="fa-solid fa-triangle-exclamation"></i></div>
+      <h3 class="text-lg font-bold theme-text mb-1">Limpar todos os lançamentos?</h3>
+      <p class="text-xs theme-subtext mb-3">Todos os lançamentos da planilha serão apagados e esta ação não pode ser desfeita. Se precisar, use Exportar antes.</p>
+      <p class="text-xs theme-subtext mb-2">Digite <b>LIMPAR</b> para confirmar:</p>
+      <input id="inputConfirmarLimpar" type="text" autocomplete="off" autocapitalize="characters" oninput="document.getElementById('btnConfirmarLimpar').disabled = this.value.trim().toUpperCase() !== 'LIMPAR'" class="w-full mb-4 px-3 py-2 text-sm text-center rounded-xl bg-slate-900/60 border border-slate-700 text-white outline-none focus:border-rose-500">
+      <div class="flex items-center justify-center gap-3">
+        <button onclick="fecharModalLimparLancamentos()" class="w-1/2 py-2.5 bg-slate-800 text-white text-xs font-semibold rounded-xl border border-slate-700">Cancelar</button>
+        <button id="btnConfirmarLimpar" disabled onclick="executarLimparLancamentos()" class="w-1/2 py-2.5 bg-rose-600 text-white text-xs font-semibold rounded-xl disabled:opacity-40">Sim, Limpar</button>
       </div>
     </div>
   </div>
@@ -547,7 +567,7 @@
   <!-- Modal Voz -->
   <div id="modalVoz" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
     <div class="glass-panel w-full max-w-sm p-6 rounded-2xl border border-slate-700 relative text-center">
-      <button onclick="fecharModalVoz()" class="absolute top-4 right-4 theme-subtext"><i class="fa-solid fa-xmark text-lg"></i></button>
+      <button onclick="fecharXModalVoz()" class="absolute top-4 right-4 theme-subtext"><i class="fa-solid fa-xmark text-lg"></i></button>
       <div id="iconVozContainer" class="w-20 h-20 rounded-full bg-purple-500/20 text-purple-500 mx-auto flex items-center justify-center text-4xl mb-4"><i id="iconVoz" class="fa-solid fa-microphone"></i></div>
       <h3 class="text-lg font-bold theme-text mb-2">Comando por Voz</h3>
       <p id="statusVozFeedback" class="text-xs theme-subtext mb-4">Toque abaixo para falar o lançamento</p>
@@ -1191,6 +1211,128 @@
       document.body.removeChild(link);
     }
 
+    // ===================== IMPORTAR / LIMPAR =====================
+    function parseCSVTexto(texto) {
+      texto = String(texto || '').replace(/^﻿/, '');
+      const primeira = texto.split(/\r?\n/)[0] || '';
+      const sep = (primeira.split(';').length >= primeira.split(',').length) ? ';' : ',';
+      const linhas = [];
+      let campo = '', linha = [], aspas = false;
+      for (let i = 0; i < texto.length; i++) {
+        const c = texto[i];
+        if (aspas) {
+          if (c === '"' && texto[i + 1] === '"') { campo += '"'; i++; }
+          else if (c === '"') aspas = false;
+          else campo += c;
+        } else if (c === '"' && campo === '') {
+          aspas = true;
+        } else if (c === sep) {
+          linha.push(campo); campo = '';
+        } else if (c === '\n' || c === '\r') {
+          if (c === '\r' && texto[i + 1] === '\n') i++;
+          linha.push(campo); campo = '';
+          if (linha.some(x => x.trim() !== '')) linhas.push(linha);
+          linha = [];
+        } else campo += c;
+      }
+      linha.push(campo);
+      if (linha.some(x => x.trim() !== '')) linhas.push(linha);
+      return linhas;
+    }
+
+    function importarCSV(input) {
+      const arquivo = input.files && input.files[0];
+      input.value = '';
+      if (!arquivo) return;
+      const leitor = new FileReader();
+      leitor.onerror = () => exibirToast("Não foi possível ler o arquivo.", "erro");
+      leitor.onload = () => {
+        let linhas = parseCSVTexto(leitor.result);
+        if (linhas.length && /^tipo$/i.test((linhas[0][0] || '').trim())) linhas.shift();
+        const itens = [];
+        let invalidas = 0;
+        linhas.forEach(c => {
+          const tipoTxt = (c[0] || '').trim();
+          const desc = (c[1] || '').trim();
+          const cat = (c[2] || '').trim();
+          const dTxt = (c[3] || '').trim();
+          let vTxt = (c[4] || '').replace(/R\$/g, '').replace(/\s/g, '');
+          const pag = (c[5] || '').trim();
+          let data = '';
+          let m = dTxt.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (m) data = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+          else if (/^\d{4}-\d{2}-\d{2}$/.test(dTxt)) data = dTxt;
+          if (vTxt.indexOf(',') !== -1) vTxt = vTxt.replace(/\./g, '').replace(',', '.');
+          const valor = parseFloat(vTxt);
+          if (!data || isNaN(valor)) { invalidas++; return; }
+          const idx = pag.indexOf(' - ');
+          const forma = idx >= 0 ? pag.substring(0, idx).trim() : pag;
+          const inst = idx >= 0 ? pag.substring(idx + 3).trim() : '';
+          itens.push({
+            type: /^rec/i.test(tipoTxt) ? 'Receita' : 'Despesa',
+            description: desc, category: cat, date: data,
+            amount: valor.toFixed(2), formapagto: forma, instituicao: inst
+          });
+        });
+        if (itens.length === 0) {
+          exibirToast("Nenhum lançamento válido encontrado no arquivo.", "erro");
+          return;
+        }
+        exibirToast(`Importando ${itens.length} lançamentos...`, "sucesso");
+        enviarImportacao(itens, 0, { importados: 0, duplicados: 0, invalidas: invalidas });
+      };
+      leitor.readAsText(arquivo, 'UTF-8');
+    }
+
+    function enviarImportacao(itens, inicio, acum) {
+      const TAM = 300;
+      if (inicio >= itens.length) {
+        carregarDados();
+        let msg = `${acum.importados} importados`;
+        if (acum.duplicados) msg += `, ${acum.duplicados} já existiam`;
+        if (acum.invalidas) msg += `, ${acum.invalidas} linhas ignoradas`;
+        exibirToast(msg + ".", "sucesso");
+        return;
+      }
+      google.script.run
+        .withSuccessHandler(function(r) {
+          acum.importados += (r && r.importados) || 0;
+          acum.duplicados += (r && r.duplicados) || 0;
+          enviarImportacao(itens, inicio + TAM, acum);
+        })
+        .withFailureHandler(function() {
+          carregarDados();
+          exibirToast(`Falha na importação (${acum.importados} já gravados).`, "erro");
+        })
+        .importTransactions(itens.slice(inicio, inicio + TAM));
+    }
+
+    function abrirModalLimparLancamentos() {
+      const inp = document.getElementById('inputConfirmarLimpar');
+      inp.value = '';
+      document.getElementById('btnConfirmarLimpar').disabled = true;
+      document.getElementById('modalLimparLancamentos').classList.remove('hidden');
+    }
+
+    function fecharModalLimparLancamentos() {
+      document.getElementById('modalLimparLancamentos').classList.add('hidden');
+    }
+
+    function executarLimparLancamentos() {
+      if (document.getElementById('inputConfirmarLimpar').value.trim().toUpperCase() !== 'LIMPAR') return;
+      fecharModalLimparLancamentos();
+      google.script.run
+        .withSuccessHandler(function() {
+          listaTransacoesGlobal = [];
+          carregarDados();
+          exibirToast("Todos os lançamentos foram apagados.", "sucesso");
+        })
+        .withFailureHandler(function() {
+          exibirToast("Não foi possível limpar os lançamentos.", "erro");
+        })
+        .clearTransactions();
+    }
+
     function toggleFabMenu() {
       const menu = document.getElementById('fabMenu');
       const icon = document.getElementById('fabIcon');
@@ -1320,8 +1462,6 @@
     let formularioPorVoz = false;
     function definirModoVozFormulario(ativo) {
       formularioPorVoz = !!ativo;
-      const btn = document.getElementById('btnDigitalizarForm');
-      if (btn) btn.classList.toggle('hidden', formularioPorVoz);
     }
 
     function responderOutroLancamento(outro) {
@@ -1986,6 +2126,12 @@
     }
 
     // ===================== RECONHECIMENTO DE VOZ =====================
+    // X da tela de comando de voz: fecha e volta para a tela Nova Transação
+    function fecharXModalVoz() {
+      fecharModalVoz();
+      abrirModalNovaTransacao();
+    }
+
     function fecharModalVoz() {
       if (recVozInstancia) {
         recVozInstancia._cancelado = true;
