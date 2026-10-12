@@ -1931,11 +1931,13 @@
       // Remove da descrição o que já virou campo (pagamento, instituição, data)
       const fimPalavra = '(?![a-zA-Z0-9À-ÿ])';
       restante = restante
-        .replace(new RegExp('(?:(?:no|na|com|via|pelo|pela|em|de)\\s+)?cart[aã]o(?:\\s+de)?(?:\\s+cr[eé]dito|\\s+d[eé]bito)?' + fimPalavra, 'gi'), ' ')
-        .replace(new RegExp('(?:(?:no|na|com|via|pelo|pela|em|de)\\s+)?(?:cr[eé]dito|d[eé]bito|pix|dinheiro|esp[eé]cie)' + fimPalavra, 'gi'), ' ');
+        .replace(new RegExp('(?:\\b(?:no|na|com|via|pelo|pela|em|de)\\s+)?\\bcart[aã]o(?:\\s+de)?(?:\\s+cr[eé]dito|\\s+d[eé]bito)?' + fimPalavra, 'gi'), ' ')
+        .replace(new RegExp('(?:\\b(?:no|na|com|via|pelo|pela|em|de)\\s+)?\\b(?:cr[eé]dito|d[eé]bito|pix|dinheiro|esp[eé]cie)' + fimPalavra, 'gi'), ' ');
       if (instituicao !== 'Geral') {
-        restante = restante.replace(new RegExp('(?:(?:no|na|do|da|pelo|pela|em)\\s+)?(?:' + padraoInstituicoes + ')' + fimPalavra, 'gi'), ' ');
+        restante = restante.replace(new RegExp('(?:\\b(?:no|na|do|da|pelo|pela|em)\\s+)?\\b(?:' + padraoInstituicoes + ')' + fimPalavra, 'gi'), ' ');
       }
+      // As palavras "instituição" e "banco" (ditas junto do nome) também não entram na descrição
+      restante = restante.replace(new RegExp('(?:\\b(?:no|na|do|da|pelo|pela|em|de)\\s+)?\\b(?:institui[cç][aã]o|banco)' + fimPalavra, 'gi'), ' ');
       restante = restante.replace(/\b(hoje|ontem|anteontem)\b/gi, ' ');
 
       const stop = ['gastei', 'paguei', 'comprei', 'recebi', 'ganhei', 'gasto', 'compra', 'pagamento', 'de', 'do', 'da', 'no', 'na', 'em', 'com', 'um', 'uma', 'o', 'a', 'os', 'as', 'para', 'pra', 'por', 'reais', 'real', 'lancamento', 'despesa', 'receita', 'adicionar', 'registrar', 'e'];
