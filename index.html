@@ -508,7 +508,7 @@
         </div>
         <div>
           <label id="labelValorForm" class="block text-xs font-semibold theme-subtext mb-1">Valor (R$)</label>
-          <div class="relative"><input type="number" step="0.01" inputmode="decimal" id="inputValor" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 pr-9 text-sm"><button type="button" onclick="limparCampoForm('inputValor')" tabindex="-1" aria-label="Limpar" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-circle-xmark"></i></button></div>
+          <div class="relative"><input type="number" step="0.01" inputmode="decimal" id="inputValor" oninput="atualizarRotuloValor()" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 pr-9 text-sm"><button type="button" onclick="limparCampoForm('inputValor')" tabindex="-1" aria-label="Limpar" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-circle-xmark"></i></button></div>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -528,6 +528,7 @@
         <div id="blocoParcelas" class="hidden">
           <label class="block text-xs font-semibold theme-subtext mb-1">Número de parcelas</label>
           <input type="number" id="inputParcelas" oninput="atualizarRotuloValor()" min="1" max="99" step="1" value="1" inputmode="numeric" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+          <p id="dicaParcelas" class="text-xs theme-subtext mt-1"></p>
         </div>
         <details id="detalhesTextoCupom" class="hidden mt-3 text-xs theme-subtext">
           <summary class="cursor-pointer font-semibold">Ver texto lido do cupom</summary>
@@ -1472,7 +1473,12 @@
     function atualizarRotuloValor() {
       const n = parseInt(document.getElementById('inputParcelas').value, 10) || 1;
       const ehCredito = document.getElementById('inputFormaPagto').value === 'Crédito';
-      document.getElementById('labelValorForm').innerText = (ehCredito && n > 1) ? 'Valor de cada parcela (R$)' : 'Valor (R$)';
+      document.getElementById('labelValorForm').innerText = (ehCredito && n > 1) ? 'Valor total (R$)' : 'Valor (R$)';
+      const dica = document.getElementById('dicaParcelas');
+      const total = parseFloat(document.getElementById('inputValor').value);
+      if (dica) dica.innerText = (ehCredito && n > 1 && total > 0)
+        ? `${n}x de R$ ${(Math.floor(Math.round(total * 100) / n) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        : '';
     }
     // Soma meses mantendo o dia (ajusta para o último dia do mês quando necessário)
     function somarMesesISO(iso, meses) {
@@ -1482,12 +1488,16 @@
       alvo.setDate(Math.min(p[2], ultimo));
       return dataLocalISO(alvo);
     }
-    // Uma linha por parcela, uma por mês, todas com o valor da parcela
+    // Divide o valor total em N parcelas (uma por mês); a diferença de centavos vai na última
     function gerarParcelas(d) {
       const n = d.parcelas;
+      const centavos = Math.round((parseFloat(String(d.amount).replace(',', '.')) || 0) * 100);
+      const baseCent = Math.floor(centavos / n);
       const lista = [];
       for (let i = 0; i < n; i++) {
+        const cent = (i === n - 1) ? centavos - baseCent * (n - 1) : baseCent;
         lista.push(Object.assign({}, d, {
+          amount: (cent / 100).toFixed(2),
           id: null,
           description: `${d.description} (${i + 1}/${n})`,
           date: somarMesesISO(d.date, i),
