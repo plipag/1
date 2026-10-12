@@ -513,17 +513,21 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-semibold theme-subtext mb-1">Forma de Pagamento</label>
-            <select id="inputFormaPagto" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+            <select id="inputFormaPagto" onchange="atualizarCampoParcelas()" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
               <option value="Pix">Pix</option>
               <option value="Dinheiro">Dinheiro</option>
-              <option value="Cartão Crédito">Cartão Crédito</option>
-              <option value="Cartão Débito">Cartão Débito</option>
+              <option value="Crédito">Crédito</option>
+              <option value="Débito">Débito</option>
             </select>
           </div>
           <div>
             <label class="block text-xs font-semibold theme-subtext mb-1">Instituição</label>
             <div class="relative"><input type="text" id="inputInstituicao" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 pr-9 text-sm"><button type="button" onclick="limparCampoForm('inputInstituicao')" tabindex="-1" aria-label="Limpar" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-circle-xmark"></i></button></div>
           </div>
+        </div>
+        <div id="blocoParcelas" class="hidden">
+          <label class="block text-xs font-semibold theme-subtext mb-1">Número de parcelas</label>
+          <input type="number" id="inputParcelas" min="1" max="99" step="1" value="1" inputmode="numeric" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
         </div>
         <details id="detalhesTextoCupom" class="hidden mt-3 text-xs theme-subtext">
           <summary class="cursor-pointer font-semibold">Ver texto lido do cupom</summary>
@@ -1199,9 +1203,7 @@
         const dataFormatted = formatarDataBR(t.date);
         const val = Number(t.amount) || 0;
         const valStr = val.toFixed(2).replace('.', ',');
-        const fp = (t.formapagto || 'Pix').replace(/;/g, ',');
-        const inst = (t.instituicao || '').replace(/;/g, ',');
-        const pagtoTexto = inst ? `${fp} - ${inst}` : fp;
+        const pagtoTexto = textoPagto(t).replace(/;/g, ',');
 
         csvContent += `${tipo};${desc};${cat};${dataFormatted};${valStr};${pagtoTexto}\n`;
       });
@@ -1271,12 +1273,17 @@
           const valor = parseFloat(vTxt);
           if (!data || isNaN(valor)) { invalidas++; return; }
           const idx = pag.indexOf(' - ');
-          const forma = idx >= 0 ? pag.substring(0, idx).trim() : pag;
+          let forma = idx >= 0 ? pag.substring(0, idx).trim() : pag;
+          let parcelas = 1;
+          const mp = forma.match(/^(.*?)\s+(\d{1,2})x$/i);
+          if (mp) { forma = mp[1].trim(); parcelas = parseInt(mp[2], 10) || 1; }
+          forma = normalizarFormaPagto(forma);
+          if (forma !== 'Crédito') parcelas = 1;
           const inst = idx >= 0 ? pag.substring(idx + 3).trim() : '';
           itens.push({
             type: /^rec/i.test(tipoTxt) ? 'Receita' : 'Despesa',
             description: desc, category: cat, date: data,
-            amount: valor.toFixed(2), formapagto: forma, instituicao: inst
+            amount: valor.toFixed(2), formapagto: forma, instituicao: inst, parcelas: parcelas
           });
         });
         if (itens.length === 0) {
@@ -1404,9 +1411,7 @@
         if (isReceita) totalEntradas += val;
         else totalSaidas += val;
 
-        const fp = t.formapagto || 'Pix';
-        const inst = t.instituicao ? t.instituicao.trim() : '';
-        const pagtoTexto = inst ? `${fp} - ${inst}` : fp;
+        const pagtoTexto = textoPagto(t);
 
         tabelaRows += `
           <tr>
@@ -1450,6 +1455,25 @@
       `;
 
       setTimeout(() => { window.print(); }, 300);
+    }
+
+    function normalizarFormaPagto(f) {
+      const s = String(f || '').trim();
+      if (/cr[eé]dito/i.test(s)) return 'Crédito';
+      if (/d[eé]bito/i.test(s)) return 'Débito';
+      return s;
+    }
+    function atualizarCampoParcelas() {
+      const ehCredito = document.getElementById('inputFormaPagto').value === 'Crédito';
+      document.getElementById('blocoParcelas').classList.toggle('hidden', !ehCredito);
+      if (!ehCredito) document.getElementById('inputParcelas').value = 1;
+    }
+    function textoPagto(t) {
+      let fp = normalizarFormaPagto(t.formapagto) || 'Pix';
+      const n = parseInt(t.parcelas, 10) || 1;
+      if (fp === 'Crédito' && n > 1) fp += ` ${n}x`;
+      const inst = t.instituicao ? String(t.instituicao).trim() : '';
+      return inst ? `${fp} - ${inst}` : fp;
     }
 
     function limparCampoForm(id) {
@@ -1500,6 +1524,7 @@
       document.getElementById('modalTransacao').classList.remove('hidden');
       document.getElementById('inputData').value = dataLocalISO();
       atualizarListaCategoriasForm();
+      atualizarCampoParcelas();
       const detCupom = document.getElementById('detalhesTextoCupom'); if (detCupom) detCupom.classList.add('hidden');
     }
 
@@ -1584,7 +1609,7 @@
                 exibirFotoPerfil(userPhotoGlobal);
 
                 if (data.transactions) {
-                  listaTransacoesGlobal = data.transactions;
+                  listaTransacoesGlobal = data.transactions.map(t => Object.assign({}, t, { formapagto: normalizarFormaPagto(t.formapagto) || 'Pix', parcelas: parseInt(t.parcelas, 10) || 1 }));
                   padroesCuponsGlobal = data.padroesCupons || {};
                   atualizarOpcoesCategorias(listaTransacoesGlobal);
                   renderizarDados(obterTransacoesFiltradas());
@@ -1629,9 +1654,7 @@
           const isUltimos = (idx >= totalExibir - 2) && totalExibir > 2;
           const menuPosClass = isUltimos ? "bottom-full mb-1" : "top-full mt-1";
 
-          const fp = t.formapagto || 'Pix';
-          const inst = t.instituicao ? t.instituicao.trim() : '';
-          const pagtoTexto = inst ? `${fp} - ${inst}` : fp;
+          const pagtoTexto = textoPagto(t);
 
           html += `
             <tr class="border-b border-slate-800/60 hover:bg-slate-500/10 transition-colors">
@@ -1742,8 +1765,11 @@
       document.getElementById('inputCategoria').value = item.category || '';
       document.getElementById('inputValor').value = item.amount || '';
       document.getElementById('inputData').value = item.date || new Date().toISOString().split('T')[0];
-      document.getElementById('inputFormaPagto').value = item.formapagto || 'Pix';
+      document.getElementById('inputFormaPagto').value = normalizarFormaPagto(item.formapagto) || 'Pix';
       document.getElementById('inputInstituicao').value = item.instituicao || '';
+      document.getElementById('inputParcelas').value = parseInt(item.parcelas, 10) || 1;
+      atualizarCampoParcelas();
+      if (document.getElementById('inputFormaPagto').value === 'Crédito') document.getElementById('inputParcelas').value = parseInt(item.parcelas, 10) || 1;
 
       document.getElementById('modalTransacao').classList.remove('hidden');
     }
@@ -1918,6 +1944,7 @@
         date: document.getElementById('inputData').value,
         formapagto: document.getElementById('inputFormaPagto').value,
         instituicao: document.getElementById('inputInstituicao').value,
+        parcelas: document.getElementById('inputFormaPagto').value === 'Crédito' ? (Math.min(99, Math.max(1, parseInt(document.getElementById('inputParcelas').value, 10) || 1))) : 1,
         salvarPadraoLoja: vemDeScan
       };
 
@@ -2114,11 +2141,11 @@
 
       // Forma de pagamento
       let formapagto = 'Pix';
-      if (/cartao de credito|credito/.test(normFull)) formapagto = 'Cartão Crédito';
-      else if (/cartao de debito|debito/.test(normFull)) formapagto = 'Cartão Débito';
+      if (/cartao de credito|credito/.test(normFull)) formapagto = 'Crédito';
+      else if (/cartao de debito|debito/.test(normFull)) formapagto = 'Débito';
       else if (/dinheiro|especie/.test(normFull)) formapagto = 'Dinheiro';
       else if (/\bpix\b/.test(normFull)) formapagto = 'Pix';
-      else if (/\bcartao\b/.test(normFull)) formapagto = 'Cartão Crédito';
+      else if (/\bcartao\b/.test(normFull)) formapagto = 'Crédito';
 
       // Instituição
       let instituicao = 'Geral';
@@ -2714,8 +2741,8 @@
 
       // ---------- FORMA DE PAGAMENTO ----------
       const tudo = up(linhas.join(' | '));
-      if (/CARTAO\s*(DE\s*)?CREDITO|\bCREDITO\b/.test(tudo)) res.formapagto = 'Cartão Crédito';
-      else if (/CARTAO\s*(DE\s*)?DEBITO|\bDEBITO\b/.test(tudo)) res.formapagto = 'Cartão Débito';
+      if (/CARTAO\s*(DE\s*)?CREDITO|\bCREDITO\b/.test(tudo)) res.formapagto = 'Crédito';
+      else if (/CARTAO\s*(DE\s*)?DEBITO|\bDEBITO\b/.test(tudo)) res.formapagto = 'Débito';
       else if (/\bPIX\b/.test(tudo)) res.formapagto = 'Pix';
       else if (/DINHEIRO/.test(tudo)) res.formapagto = 'Dinheiro';
 
@@ -2912,6 +2939,7 @@
       document.getElementById('inputValor').value = '';
       document.getElementById('inputData').value = dataLocalISO();
       document.getElementById('inputFormaPagto').value = 'Pix';
+      atualizarCampoParcelas();
       document.getElementById('inputInstituicao').value = '';
       document.getElementById('inputVemDeScan').value = 'false';
       const detCupomLimpar = document.getElementById('detalhesTextoCupom');
@@ -2931,7 +2959,7 @@
         if (r.categoria) document.getElementById('inputCategoria').value = r.categoria;
         if (r.valor > 0) document.getElementById('inputValor').value = Number(r.valor).toFixed(2);
         if (r.data) document.getElementById('inputData').value = r.data;
-        if (r.formapagto) document.getElementById('inputFormaPagto').value = r.formapagto;
+        if (r.formapagto) { document.getElementById('inputFormaPagto').value = normalizarFormaPagto(r.formapagto); atualizarCampoParcelas(); }
         document.getElementById('inputTipo').value = 'Despesa';
         document.getElementById('inputVemDeScan').value = 'true';
         mostrarTextoCupom(r.texto);
@@ -2954,7 +2982,7 @@
       document.getElementById('inputVemDeScan').value = vemDeScan ? "true" : "false";
       if (extra.tipo) document.getElementById('inputTipo').value = extra.tipo;
       if (extra.data) document.getElementById('inputData').value = extra.data;
-      if (extra.formapagto) document.getElementById('inputFormaPagto').value = extra.formapagto;
+      if (extra.formapagto) { document.getElementById('inputFormaPagto').value = normalizarFormaPagto(extra.formapagto); atualizarCampoParcelas(); }
       if (extra.instituicao && extra.instituicao !== 'Geral') document.getElementById('inputInstituicao').value = extra.instituicao;
     }
 
