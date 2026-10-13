@@ -528,9 +528,10 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-semibold theme-subtext mb-1">Tipo</label>
-            <select id="inputTipo" onchange="aoMudarTipoLancamento()" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+            <select id="inputTipo" onchange="aoMudarTipoLancamento()" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+              <option value="" selected></option>
               <option value="Receita">Receita (Entrada)</option>
-              <option value="Despesa" selected>Despesa (Saída)</option>
+              <option value="Despesa">Despesa (Saída)</option>
             </select>
           </div>
           <div>
@@ -553,7 +554,8 @@
         <div id="linhaPagto" class="grid grid-cols-1 gap-3">
           <div>
             <label class="block text-xs font-semibold theme-subtext mb-1">Forma de Pagamento</label>
-            <select id="inputFormaPagto" onchange="atualizarCampoParcelas()" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+            <select id="inputFormaPagto" onchange="atualizarCampoParcelas()" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+              <option value="" selected></option>
               <option value="Pix">Pix</option>
               <option value="Dinheiro">Dinheiro</option>
               <option value="Crédito">Crédito</option>
@@ -1657,13 +1659,14 @@
       receita: ['Salário', 'Receitas', 'Rendimentos', 'Freelance', 'Vendas', 'Outros']
     };
     function categoriasDoTipo(tipo) {
-      const chave = String(tipo || '').trim().toLowerCase() === 'receita' ? 'receita' : 'despesa';
-      const lista = CATEGORIAS_BASE_TIPO[chave].slice();
+      const t0 = String(tipo || '').trim().toLowerCase();
+      const chave = t0 === 'receita' ? 'receita' : (t0 === 'despesa' ? 'despesa' : '');
+      const lista = chave ? CATEGORIAS_BASE_TIPO[chave].slice() : CATEGORIAS_BASE_TIPO.despesa.concat(CATEGORIAS_BASE_TIPO.receita);
       const vistos = {}; lista.forEach(c => vistos[c.toLowerCase()] = true);
       (listaTransacoesGlobal || []).forEach(t => {
         const tt = String(t.type || '').trim().toLowerCase() === 'receita' ? 'receita' : 'despesa';
         const c = String(t.category || '').trim();
-        if (tt === chave && c && !vistos[c.toLowerCase()]) { vistos[c.toLowerCase()] = true; lista.push(c); }
+        if ((!chave || tt === chave) && c && !vistos[c.toLowerCase()]) { vistos[c.toLowerCase()] = true; lista.push(c); }
       });
       return lista.sort((a, b) => a.localeCompare(b, 'pt-BR'));
     }
@@ -3104,12 +3107,12 @@
       escaneandoCupom = true;
 
       // Nova digitalização: limpa os campos do formulário antes de ler o cupom
-      document.getElementById('inputTipo').value = 'Despesa';
+      document.getElementById('inputTipo').value = '';
       document.getElementById('inputDescricao').value = '';
       document.getElementById('inputCategoria').value = '';
       document.getElementById('inputValor').value = '';
       document.getElementById('inputData').value = dataLocalISO();
-      document.getElementById('inputFormaPagto').value = 'Pix';
+      document.getElementById('inputFormaPagto').value = '';
       atualizarCampoParcelas();
       document.getElementById('inputInstituicao').value = '';
       document.getElementById('inputVemDeScan').value = 'false';
