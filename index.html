@@ -485,15 +485,15 @@
           <label class="block text-xs font-semibold theme-subtext mb-1">Nova Senha (deixe em branco para manter)</label>
           <input type="password" id="inputPerfilSenha" placeholder="••••••••" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
         </div>
-        <div id="secaoBiometriaPerfil" class="hidden bg-slate-900/60 border border-slate-700 rounded-xl p-3">
+        <div id="secaoBiometriaPerfil" class="hidden bg-slate-900 border border-slate-700 rounded-xl p-3">
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0">
-              <p class="text-xs font-semibold theme-text flex items-center gap-1.5"><i class="fa-solid fa-fingerprint text-emerald-500"></i> Biometria / Face ID</p>
-              <p id="textoStatusBiometria" class="text-[11px] theme-subtext mt-0.5 leading-snug">Verificando...</p>
+              <p class="text-xs font-semibold text-white flex items-center gap-1.5"><i class="fa-solid fa-fingerprint text-emerald-500"></i> Biometria / Face ID</p>
+              <p id="textoStatusBiometria" class="text-[11px] text-white/90 mt-0.5 leading-snug">Verificando...</p>
             </div>
             <button type="button" id="btnToggleBiometria" onclick="alternarBiometriaPerfil()" class="shrink-0 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-semibold">Ativar</button>
           </div>
-          <button type="button" id="btnRemoverBioTodos" onclick="removerBiometriaTodos()" class="hidden mt-2 text-[11px] text-slate-400 hover:text-rose-400 underline">Remover de todos os aparelhos</button>
+          <button type="button" id="btnRemoverBioTodos" onclick="removerBiometriaTodos()" class="hidden mt-2 text-[11px] text-white/80 hover:text-rose-400 underline">Remover de todos os aparelhos</button>
         </div>
         <div class="flex items-center justify-end gap-2 pt-3">
           <button type="button" onclick="fecharModalPerfil()" class="px-3.5 py-2 bg-slate-800 text-white rounded-xl text-xs font-semibold">Cancelar</button>
