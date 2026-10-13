@@ -158,8 +158,30 @@
       </div>
       
       <h2 class="text-2xl font-black text-slate-800 dark:text-white tracking-tight">PliPag</h2>
-      <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-6">Entre com suas credenciais para continuar</p>
+      <p id="subtituloLogin" class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-6">Entre com suas credenciais para continuar</p>
       
+      <!-- Entrada rápida: "Continuar como ..." com a foto do usuário (aparece quando há perfil guardado neste aparelho) -->
+      <div id="loginRapido" class="hidden space-y-3 text-left">
+        <div onclick="entrarComBiometria()" class="cursor-pointer rounded-2xl p-4 flex items-center gap-3 text-white shadow-lg active:scale-[0.99] transition" style="background:#0ea5c6;">
+          <div class="w-14 h-14 rounded-full border-2 border-white/80 overflow-hidden flex items-center justify-center bg-white/15 shrink-0">
+            <img id="loginRapidoFoto" src="" alt="" class="w-full h-full object-cover hidden">
+            <i id="loginRapidoIcone" class="fa-regular fa-user text-2xl"></i>
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="text-[11px] font-medium leading-tight opacity-90">Continuar como</p>
+            <p id="loginRapidoEmail" class="text-sm font-bold leading-snug break-all"></p>
+          </div>
+          <button type="button" onclick="event.stopPropagation(); dispensarLoginRapido()" aria-label="Usar outra conta" class="w-8 h-8 rounded-full bg-black/15 hover:bg-black/25 flex items-center justify-center shrink-0 transition">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
+        <button type="button" id="btnLoginBiometriaRapido" onclick="entrarComBiometria()" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 flex items-center gap-4 shadow-md active:scale-[0.99] transition text-left">
+          <i class="fa-solid fa-shield-halved text-2xl" style="color:#0ea5c6;"></i>
+          <span class="text-base font-bold" style="color:#0ea5c6;">Biometria / Face ID</span>
+        </button>
+        <button type="button" onclick="dispensarLoginRapido()" class="w-full text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-emerald-500 underline pt-1">Entrar com e-mail e senha</button>
+      </div>
+
       <form id="formLogin" onsubmit="realizarLogin(event)" class="space-y-4 text-left">
         <div>
           <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">E-mail ou Usuário</label>
@@ -493,6 +515,7 @@
             </div>
             <button type="button" id="btnToggleBiometria" onclick="alternarBiometriaPerfil()" class="shrink-0 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-semibold">Ativar</button>
           </div>
+          <button type="button" id="btnReativarBio" onclick="ativarBiometriaPerfil()" class="hidden mt-2 mr-3 text-[11px] text-white/80 hover:text-emerald-400 underline">Ativar novamente neste aparelho</button>
           <button type="button" id="btnRemoverBioTodos" onclick="removerBiometriaTodos()" class="hidden mt-2 text-[11px] text-white/80 hover:text-rose-400 underline">Remover de todos os aparelhos</button>
         </div>
         <div class="flex items-center justify-end gap-2 pt-3">
@@ -783,6 +806,14 @@
     let bioOpcoesRegistro = null;   // opções pré-carregadas ao abrir o perfil
     let bioPlataformaOk = null;
     let bioAtivaNoAparelho = false;
+    let bioEntrando = false;
+    let loginRapidoDispensado = false;
+    let perfilRapidoSincronizado = false;
+    const PERFIL_RAPIDO_KEY = 'plipag_perfil_rapido';
+
+    function bioEmQuadro() {
+      try { return window.self !== window.top; } catch (e) { return true; }
+    }
 
     function bioTemServidor() {
       return typeof google !== 'undefined' && google.script && google.script.run;
@@ -824,6 +855,7 @@
       bioDesafioLogin = null;
       const bloco = document.getElementById('blocoLoginBiometria');
       if (bloco) bloco.classList.add('hidden');
+      mostrarLoginRapido(false);
     }
 
     function bioNomeAparelho() {
@@ -851,14 +883,89 @@
       const bloco = document.getElementById('blocoLoginBiometria');
       if (!bloco) return;
       bioDesafioLogin = null;
-      if (!bioTemServidor() || !(await bioPlataformaDisponivel())) {
+      if (bioEmQuadro() || !bioTemServidor() || !(await bioPlataformaDisponivel())) {
         bloco.classList.add('hidden');
+        mostrarLoginRapido(false);
         return;
       }
-      // O botão aparece quando o servidor confirma que há biometria ativa (não depende de dado guardado no navegador).
+      const perfil = lerPerfilRapido();
+      // Com perfil guardado e biometria conhecida neste aparelho, já mostra o cartão (sem esperar o servidor).
+      if (perfil && bioIdLocal() && !loginRapidoDispensado) {
+        mostrarLoginRapido(true, perfil);
+        bloco.classList.add('hidden');
+      }
+      // O botão só fica disponível quando o servidor confirma que há biometria ativa (não depende de dado guardado no navegador).
       const desafio = await buscarDesafioBiometria();
-      if (desafio) bloco.classList.remove('hidden');
-      else if (!bioIdLocal()) bloco.classList.add('hidden');
+      if (desafio) {
+        if (perfil && !loginRapidoDispensado) {
+          mostrarLoginRapido(true, perfil);
+          bloco.classList.add('hidden');
+        } else {
+          mostrarLoginRapido(false);
+          bloco.classList.remove('hidden');
+        }
+      } else {
+        mostrarLoginRapido(false);
+        if (!bioIdLocal()) bloco.classList.add('hidden');
+      }
+    }
+
+    // ----- Cartão "Continuar como ..." (foto + e-mail mascarado) -----
+    function mascararUsuario(u) {
+      u = String(u || '').trim();
+      if (!u) return '';
+      const arroba = u.indexOf('@');
+      const local = arroba > 0 ? u.slice(0, arroba) : u;
+      const dominio = arroba > 0 ? u.slice(arroba) : '';
+      if (local.length <= 2) return local.charAt(0) + '*****' + dominio;
+      return local.slice(0, Math.min(4, local.length - 2)) + '*****' + local.slice(-1) + dominio;
+    }
+
+    function lerPerfilRapido() {
+      try {
+        const p = JSON.parse(localStorage.getItem(PERFIL_RAPIDO_KEY) || 'null');
+        return (p && p.mail) ? p : null;
+      } catch (e) { return null; }
+    }
+
+    // Guarda neste aparelho só o e-mail mascarado e a foto (para o cartão da tela de login).
+    async function atualizarPerfilRapido(forcar) {
+      if (!bioTemServidor() || (perfilRapidoSincronizado && !forcar)) return;
+      perfilRapidoSincronizado = true;
+      try {
+        const u = await bioChamar('getUsuarioAtual', []);
+        if (!u || !u.usuario) return;
+        const dados = { mail: mascararUsuario(u.usuario), nome: u.nome || '', foto: userPhotoGlobal || '' };
+        try { localStorage.setItem(PERFIL_RAPIDO_KEY, JSON.stringify(dados)); }
+        catch (e) { dados.foto = ''; try { localStorage.setItem(PERFIL_RAPIDO_KEY, JSON.stringify(dados)); } catch (e2) {} }
+      } catch (e) { perfilRapidoSincronizado = false; }
+    }
+
+    function mostrarLoginRapido(ligado, perfil) {
+      const q = document.getElementById('loginRapido');
+      const f = document.getElementById('formLogin');
+      const sub = document.getElementById('subtituloLogin');
+      if (!q || !f) return;
+      if (ligado && perfil) {
+        document.getElementById('loginRapidoEmail').textContent = perfil.mail;
+        const img = document.getElementById('loginRapidoFoto');
+        const ico = document.getElementById('loginRapidoIcone');
+        if (perfil.foto) { img.src = perfil.foto; img.classList.remove('hidden'); ico.classList.add('hidden'); }
+        else { img.src = ''; img.classList.add('hidden'); ico.classList.remove('hidden'); }
+        q.classList.remove('hidden');
+        f.classList.add('hidden');
+        if (sub) sub.classList.add('hidden');
+      } else {
+        q.classList.add('hidden');
+        f.classList.remove('hidden');
+        if (sub) sub.classList.remove('hidden');
+      }
+    }
+
+    function dispensarLoginRapido() {
+      loginRapidoDispensado = true;
+      mostrarLoginRapido(false);
+      prepararBiometriaLogin();   // mantém o botão simples de biometria abaixo do formulário
     }
 
     async function buscarDesafioBiometria() {
@@ -874,17 +981,25 @@
     }
 
     function bioBotaoLogin(ocupado, texto) {
-      const btn = document.getElementById('btnLoginBiometria');
-      if (!btn) return;
-      btn.disabled = ocupado;
-      btn.innerHTML = ocupado
-        ? '<i class="fa-solid fa-spinner fa-spin"></i> <span>' + texto + '</span>'
-        : '<i class="fa-solid fa-fingerprint text-emerald-500 text-base"></i><span>Entrar com biometria / Face ID</span>';
+      bioEntrando = !!ocupado;
+      const girando = '<i class="fa-solid fa-spinner fa-spin"></i> <span>' + texto + '</span>';
+      const a = document.getElementById('btnLoginBiometria');
+      if (a) {
+        a.disabled = !!ocupado;
+        a.innerHTML = ocupado ? girando : '<i class="fa-solid fa-fingerprint text-emerald-500 text-base"></i><span>Entrar com biometria / Face ID</span>';
+      }
+      const b = document.getElementById('btnLoginBiometriaRapido');
+      if (b) {
+        b.disabled = !!ocupado;
+        b.innerHTML = ocupado
+          ? '<i class="fa-solid fa-spinner fa-spin text-2xl" style="color:#0ea5c6;"></i><span class="text-base font-bold" style="color:#0ea5c6;">' + texto + '</span>'
+          : '<i class="fa-solid fa-shield-halved text-2xl" style="color:#0ea5c6;"></i><span class="text-base font-bold" style="color:#0ea5c6;">Biometria / Face ID</span>';
+      }
     }
 
     async function entrarComBiometria() {
-      const btn = document.getElementById('btnLoginBiometria');
-      if (!btn || btn.disabled) return;
+      if (bioEntrando) return;
+      bioEntrando = true;
       const id = bioIdLocal();   // pode estar vazio (atalho da tela inicial usa armazenamento separado): o aparelho encontra a credencial
 
       // Usa o desafio já carregado: assim o pedido do Face ID acontece direto no toque (exigência do iPhone).
@@ -961,6 +1076,8 @@
       const texto = document.getElementById('textoStatusBiometria');
       const btn = document.getElementById('btnToggleBiometria');
       const link = document.getElementById('btnRemoverBioTodos');
+      const linkRe = document.getElementById('btnReativarBio');
+      if (linkRe) linkRe.classList.add('hidden');
       if (!texto || !btn) return;
       btn.disabled = !!carregando;
       if (carregando) {
@@ -969,10 +1086,13 @@
       }
       if (ativa) {
         texto.textContent = 'Ativa neste aparelho. Você pode entrar sem digitar a senha.';
+        if (linkRe) linkRe.classList.remove('hidden');
         btn.textContent = 'Desativar';
         btn.className = 'shrink-0 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-semibold';
       } else {
-        texto.textContent = 'Entre com Face ID, Touch ID ou digital, sem digitar a senha.';
+        texto.textContent = totalAparelhos > 0
+          ? 'Já há biometria ativa neste app. Toque em Ativar para usar neste aparelho ou remova abaixo.'
+          : 'Entre com Face ID, Touch ID ou digital, sem digitar a senha.';
         btn.textContent = 'Ativar';
         btn.className = 'shrink-0 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-semibold';
       }
@@ -988,6 +1108,12 @@
         return;
       }
       secao.classList.remove('hidden');
+      if (bioEmQuadro()) {
+        bioMostrarEstadoPerfil(false, 0, false);
+        document.getElementById('textoStatusBiometria').textContent = 'Abra o app direto pelo endereço do GitHub (plipag.github.io/1), não pelo quadro do blogspot, para ativar a biometria.';
+        document.getElementById('btnToggleBiometria').disabled = true;
+        return;
+      }
       bioMostrarEstadoPerfil(false, 0, true);
       try {
         const r = await bioChamar('biometriaOpcoesRegistro', []);
@@ -1008,7 +1134,12 @@
       const btn = document.getElementById('btnToggleBiometria');
       if (!btn || btn.disabled) return;
       if (bioAtivaNoAparelho) { desativarBiometriaPerfil(); return; }
+      ativarBiometriaPerfil();
+    }
 
+    async function ativarBiometriaPerfil() {
+      const btn = document.getElementById('btnToggleBiometria');
+      if (!btn || btn.disabled) return;
       let op = bioOpcoesRegistro;
       bioOpcoesRegistro = null;
       if (!op || Date.now() - op.em > BIO_VALIDADE_MS) {
@@ -1041,7 +1172,7 @@
       } catch (e) {
         btn.disabled = false;
         if (e && e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
-          exibirToast('Este aparelho não permitiu ativar a biometria.', 'erro');
+          exibirToast('Este aparelho não permitiu ativar a biometria (' + ((e && e.name) || 'erro') + ').', 'erro');
         }
         atualizarSecaoBiometriaPerfil();
         return;
@@ -1219,6 +1350,7 @@
             if (res && res.status === 'success') {
               fecharModalPerfil();
               exibirToast("Perfil atualizado com sucesso!", "sucesso");
+              atualizarPerfilRapido(true);
               if (res.senhaAlterada && bioIdLocal()) {
                 bioLimparLocal();
                 exibirToast("Por segurança, a biometria foi desativada. Ative novamente no Perfil.", "erro");
@@ -1258,6 +1390,8 @@
           document.getElementById('telaLogin').classList.remove('hidden');
           document.getElementById('loginSenha').value = '';
           exibirToast("Sessão encerrada com sucesso.", "sucesso");
+          loginRapidoDispensado = false;
+          perfilRapidoSincronizado = false;
           prepararBiometriaLogin();
         }).logoutUsuario();
       } else {
@@ -2123,6 +2257,7 @@
                 budgetMetaGlobal = Number(data.budgetMeta) || 3500;
                 userPhotoGlobal = data.userPhoto || '';
                 exibirFotoPerfil(userPhotoGlobal);
+                atualizarPerfilRapido();
 
                 if (data.transactions) {
                   listaTransacoesGlobal = data.transactions.map(t => Object.assign({}, t, { formapagto: normalizarFormaPagto(t.formapagto) || 'Pix', parcelas: parseInt(t.parcelas, 10) || 1 }));
