@@ -865,7 +865,7 @@
       try {
         const r = await bioChamar('biometriaDesafio', []);
         if (r && r.status === 'success') {
-          bioDesafioLogin = { challenge: r.challenge, em: Date.now() };
+          bioDesafioLogin = { challenge: r.challenge, ids: r.ids || [], em: Date.now() };
           return bioDesafioLogin;
         }
         if (r && r.codigo === 'BIOMETRIA_INATIVA') bioLimparLocal();
@@ -901,12 +901,16 @@
         }
       }
 
+      // Credenciais aceitas: as informadas pelo servidor (funciona em qualquer atalho/navegador) + a guardada aqui.
+      const idsPermitidos = (desafio.ids || []).slice();
+      if (id && idsPermitidos.indexOf(id) === -1) idsPermitidos.push(id);
+      const inicioPedido = Date.now();
       let cred;
       try {
         cred = await navigator.credentials.get({
           publicKey: {
             challenge: bioB64uParaBuf(desafio.challenge),
-            allowCredentials: id ? [{ type: 'public-key', id: bioB64uParaBuf(id) }] : [],
+            allowCredentials: idsPermitidos.map(function(i) { return { type: 'public-key', id: bioB64uParaBuf(i) }; }),
             userVerification: 'required',
             timeout: 60000
           }
@@ -915,8 +919,9 @@
         bioBotaoLogin(false);
         if (e && e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
           exibirToast('Biometria indisponível neste aparelho. Use a senha.', 'erro');
-        } else if (!id) {
-          exibirToast('Se ainda não ativou neste aparelho, entre com a senha e ative em Perfil.', 'erro');
+        } else if (Date.now() - inicioPedido < 2000) {
+          // recusa imediata = o aparelho não achou a biometria (cancelar manualmente leva mais tempo)
+          exibirToast('Biometria não encontrada neste aparelho. Entre com a senha e, em Perfil, toque em Ativar.', 'erro');
         }
         buscarDesafioBiometria();
         return;
