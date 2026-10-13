@@ -186,6 +186,18 @@
         </button>
       </form>
 
+      <!-- Entrada por biometria / Face ID (só aparece se estiver ativada neste aparelho) -->
+      <div id="blocoLoginBiometria" class="hidden mt-4">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
+          <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">ou</span>
+          <div class="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
+        </div>
+        <button type="button" id="btnLoginBiometria" onclick="entrarComBiometria()" class="w-full py-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-300 dark:border-slate-700 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+          <i class="fa-solid fa-fingerprint text-emerald-500 text-base"></i><span>Entrar com biometria / Face ID</span>
+        </button>
+      </div>
+
     </div>
   </div>
 
@@ -473,6 +485,16 @@
           <label class="block text-xs font-semibold theme-subtext mb-1">Nova Senha (deixe em branco para manter)</label>
           <input type="password" id="inputPerfilSenha" placeholder="••••••••" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
         </div>
+        <div id="secaoBiometriaPerfil" class="hidden bg-slate-900/60 border border-slate-700 rounded-xl p-3">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-xs font-semibold theme-text flex items-center gap-1.5"><i class="fa-solid fa-fingerprint text-emerald-500"></i> Biometria / Face ID</p>
+              <p id="textoStatusBiometria" class="text-[11px] theme-subtext mt-0.5 leading-snug">Verificando...</p>
+            </div>
+            <button type="button" id="btnToggleBiometria" onclick="alternarBiometriaPerfil()" class="shrink-0 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-semibold">Ativar</button>
+          </div>
+          <button type="button" id="btnRemoverBioTodos" onclick="removerBiometriaTodos()" class="hidden mt-2 text-[11px] text-slate-400 hover:text-rose-400 underline">Remover de todos os aparelhos</button>
+        </div>
         <div class="flex items-center justify-end gap-2 pt-3">
           <button type="button" onclick="fecharModalPerfil()" class="px-3.5 py-2 bg-slate-800 text-white rounded-xl text-xs font-semibold">Cancelar</button>
           <button type="submit" id="btnSalvarPerfil" class="px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-semibold">Salvar Alterações</button>
@@ -711,7 +733,7 @@
               const args = Array.prototype.slice.call(arguments).map(function(a) { return a === undefined ? null : a; });
               if (nome === 'autenticarUsuario') args.push(idDispositivo());
               chamarApi(nome, args).then(function(res) {
-                if (nome === 'autenticarUsuario' && res && res.token) { tokenSessao = res.token; delete res.token; }
+                if ((nome === 'autenticarUsuario' || nome === 'autenticarBiometria') && res && res.token) { tokenSessao = res.token; delete res.token; }
                 if (nome === 'logoutUsuario') tokenSessao = '';
                 if (onOk) onOk(res);
               }).catch(function(err) {
@@ -719,6 +741,7 @@
                   tokenSessao = '';
                   const tela = document.getElementById('telaLogin');
                   if (tela) tela.classList.remove('hidden');
+                  if (typeof prepararBiometriaLogin === 'function') prepararBiometriaLogin();
                   if (typeof exibirToast === 'function') exibirToast('Sessão expirada. Entre novamente.', 'erro');
                 }
                 if (onFail) onFail(err);
@@ -750,6 +773,314 @@
     let transacoesFiltradasCache = [];
     let limiteExibicaoAtual = 10;
     const TAMANHO_LOTE = 10;
+
+    // ===== Biometria / Face ID (WebAuthn) =====
+    // O aparelho guarda a chave protegida por Face ID / Touch ID / digital / Windows Hello.
+    // Aqui no navegador fica só o identificador da credencial (não é um segredo).
+    const BIO_STORAGE_KEY = 'plipag_bio_id';
+    const BIO_VALIDADE_MS = 3 * 60 * 1000;
+    let bioDesafioLogin = null;     // desafio pré-carregado (evita esperar a rede no toque do botão)
+    let bioOpcoesRegistro = null;   // opções pré-carregadas ao abrir o perfil
+    let bioPlataformaOk = null;
+    let bioAtivaNoAparelho = false;
+
+    function bioTemServidor() {
+      return typeof google !== 'undefined' && google.script && google.script.run;
+    }
+
+    function bioChamar(nome, args) {
+      return new Promise((resolve, reject) => {
+        const r = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+        r[nome].apply(r, args || []);
+      });
+    }
+
+    function bioB64uParaBuf(s) {
+      s = String(s).replace(/-/g, '+').replace(/_/g, '/');
+      while (s.length % 4) s += '=';
+      const bin = atob(s);
+      const buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      return buf.buffer;
+    }
+
+    function bioBufParaB64u(buf) {
+      const bytes = new Uint8Array(buf);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function bioIdLocal() {
+      try { return localStorage.getItem(BIO_STORAGE_KEY) || ''; } catch (e) { return ''; }
+    }
+
+    function bioSalvarIdLocal(id) {
+      try { localStorage.setItem(BIO_STORAGE_KEY, id); } catch (e) {}
+    }
+
+    function bioLimparLocal() {
+      try { localStorage.removeItem(BIO_STORAGE_KEY); } catch (e) {}
+      bioDesafioLogin = null;
+      const bloco = document.getElementById('blocoLoginBiometria');
+      if (bloco) bloco.classList.add('hidden');
+    }
+
+    function bioNomeAparelho() {
+      const ua = navigator.userAgent || '';
+      if (/iPhone/i.test(ua)) return 'iPhone';
+      if (/iPad/i.test(ua)) return 'iPad';
+      if (/Android/i.test(ua)) return 'Android';
+      if (/Macintosh/i.test(ua)) return 'Mac';
+      if (/Windows/i.test(ua)) return 'Windows';
+      return 'Navegador';
+    }
+
+    async function bioPlataformaDisponivel() {
+      if (bioPlataformaOk !== null) return bioPlataformaOk;
+      try {
+        bioPlataformaOk = !!(window.isSecureContext && window.PublicKeyCredential && navigator.credentials &&
+          PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable &&
+          await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());
+      } catch (e) { bioPlataformaOk = false; }
+      return bioPlataformaOk;
+    }
+
+    // ----- Tela de login -----
+    async function prepararBiometriaLogin() {
+      const bloco = document.getElementById('blocoLoginBiometria');
+      if (!bloco) return;
+      bioDesafioLogin = null;
+      if (!bioIdLocal() || !bioTemServidor() || !(await bioPlataformaDisponivel())) {
+        bloco.classList.add('hidden');
+        return;
+      }
+      bloco.classList.remove('hidden');
+      buscarDesafioBiometria();
+    }
+
+    async function buscarDesafioBiometria() {
+      try {
+        const r = await bioChamar('biometriaDesafio', []);
+        if (r && r.status === 'success') {
+          bioDesafioLogin = { challenge: r.challenge, em: Date.now() };
+          return bioDesafioLogin;
+        }
+        if (r && r.codigo === 'BIOMETRIA_INATIVA') bioLimparLocal();
+      } catch (e) {}
+      return null;
+    }
+
+    function bioBotaoLogin(ocupado, texto) {
+      const btn = document.getElementById('btnLoginBiometria');
+      if (!btn) return;
+      btn.disabled = ocupado;
+      btn.innerHTML = ocupado
+        ? '<i class="fa-solid fa-spinner fa-spin"></i> <span>' + texto + '</span>'
+        : '<i class="fa-solid fa-fingerprint text-emerald-500 text-base"></i><span>Entrar com biometria / Face ID</span>';
+    }
+
+    async function entrarComBiometria() {
+      const btn = document.getElementById('btnLoginBiometria');
+      if (!btn || btn.disabled) return;
+      const id = bioIdLocal();
+      if (!id) { prepararBiometriaLogin(); return; }
+
+      // Usa o desafio já carregado: assim o pedido do Face ID acontece direto no toque (exigência do iPhone).
+      let desafio = bioDesafioLogin;
+      bioDesafioLogin = null;
+      if (!desafio || Date.now() - desafio.em > BIO_VALIDADE_MS) {
+        bioBotaoLogin(true, 'Preparando...');
+        desafio = await buscarDesafioBiometria();
+        bioDesafioLogin = null;
+        if (!desafio) {
+          bioBotaoLogin(false);
+          if (bioIdLocal()) exibirToast('Não foi possível iniciar a biometria. Tente novamente ou use a senha.', 'erro');
+          return;
+        }
+      }
+
+      let cred;
+      try {
+        cred = await navigator.credentials.get({
+          publicKey: {
+            challenge: bioB64uParaBuf(desafio.challenge),
+            allowCredentials: [{ type: 'public-key', id: bioB64uParaBuf(id) }],
+            userVerification: 'required',
+            timeout: 60000
+          }
+        });
+      } catch (e) {
+        bioBotaoLogin(false);
+        if (e && e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
+          exibirToast('Biometria indisponível neste aparelho. Use a senha.', 'erro');
+        }
+        buscarDesafioBiometria();
+        return;
+      }
+
+      bioBotaoLogin(true, 'Autenticando...');
+      const r = cred.response;
+      bioChamar('autenticarBiometria', [
+        bioBufParaB64u(cred.rawId),
+        bioBufParaB64u(r.clientDataJSON),
+        bioBufParaB64u(r.authenticatorData),
+        bioBufParaB64u(r.signature)
+      ]).then(function(resposta) {
+        bioBotaoLogin(false);
+        if (resposta && resposta.status === 'success') {
+          document.getElementById('telaLogin').classList.add('hidden');
+          const fabContainer = document.getElementById('fabContainer');
+          if (fabContainer) fabContainer.classList.remove('hidden');
+          exibirToast("Login realizado com sucesso!", "sucesso");
+          carregarDados();
+        } else {
+          if (resposta && resposta.codigo === 'BIOMETRIA_INATIVA') bioLimparLocal();
+          else buscarDesafioBiometria();
+          exibirToast((resposta && resposta.message) ? resposta.message : 'Não foi possível validar a biometria.', 'erro');
+        }
+      }).catch(function() {
+        bioBotaoLogin(false);
+        buscarDesafioBiometria();
+        exibirToast('Erro na comunicação com o servidor.', 'erro');
+      });
+    }
+
+    // ----- Perfil: ativar / desativar -----
+    function bioMostrarEstadoPerfil(ativa, totalAparelhos, carregando) {
+      bioAtivaNoAparelho = ativa;
+      const texto = document.getElementById('textoStatusBiometria');
+      const btn = document.getElementById('btnToggleBiometria');
+      const link = document.getElementById('btnRemoverBioTodos');
+      if (!texto || !btn) return;
+      btn.disabled = !!carregando;
+      if (carregando) {
+        texto.textContent = 'Verificando...';
+        return;
+      }
+      if (ativa) {
+        texto.textContent = 'Ativa neste aparelho. Você pode entrar sem digitar a senha.';
+        btn.textContent = 'Desativar';
+        btn.className = 'shrink-0 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-semibold';
+      } else {
+        texto.textContent = 'Entre com Face ID, Touch ID ou digital, sem digitar a senha.';
+        btn.textContent = 'Ativar';
+        btn.className = 'shrink-0 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-semibold';
+      }
+      if (link) link.classList.toggle('hidden', !(totalAparelhos > 0));
+    }
+
+    async function atualizarSecaoBiometriaPerfil() {
+      const secao = document.getElementById('secaoBiometriaPerfil');
+      if (!secao) return;
+      bioOpcoesRegistro = null;
+      if (!bioTemServidor() || !(await bioPlataformaDisponivel())) {
+        secao.classList.add('hidden');
+        return;
+      }
+      secao.classList.remove('hidden');
+      bioMostrarEstadoPerfil(false, 0, true);
+      try {
+        const r = await bioChamar('biometriaOpcoesRegistro', []);
+        if (!r || r.status !== 'success') throw new Error('x');
+        const existentes = r.existentes || [];
+        const idLocal = bioIdLocal();
+        const ativa = !!idLocal && existentes.indexOf(idLocal) !== -1;
+        if (idLocal && !ativa) bioLimparLocal();
+        bioOpcoesRegistro = { dados: r, em: Date.now() };
+        bioMostrarEstadoPerfil(ativa, existentes.length, false);
+      } catch (e) {
+        const texto = document.getElementById('textoStatusBiometria');
+        if (texto) texto.textContent = 'Não foi possível verificar a biometria agora.';
+      }
+    }
+
+    async function alternarBiometriaPerfil() {
+      const btn = document.getElementById('btnToggleBiometria');
+      if (!btn || btn.disabled) return;
+      if (bioAtivaNoAparelho) { desativarBiometriaPerfil(); return; }
+
+      let op = bioOpcoesRegistro;
+      bioOpcoesRegistro = null;
+      if (!op || Date.now() - op.em > BIO_VALIDADE_MS) {
+        btn.disabled = true;
+        try {
+          const r = await bioChamar('biometriaOpcoesRegistro', []);
+          if (!r || r.status !== 'success') throw new Error('x');
+          op = { dados: r, em: Date.now() };
+        } catch (e) {
+          btn.disabled = false;
+          exibirToast('Não foi possível iniciar a ativação. Tente novamente.', 'erro');
+          return;
+        }
+      }
+      const d = op.dados;
+
+      let cred;
+      try {
+        cred = await navigator.credentials.create({
+          publicKey: {
+            rp: { name: 'PliPag' },
+            user: { id: bioB64uParaBuf(d.userId), name: d.usuario || 'plipag', displayName: d.nome || 'PliPag' },
+            challenge: bioB64uParaBuf(d.challenge),
+            pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+            authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'discouraged', userVerification: 'required' },
+            attestation: 'none',
+            timeout: 60000
+          }
+        });
+      } catch (e) {
+        btn.disabled = false;
+        if (e && e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
+          exibirToast('Este aparelho não permitiu ativar a biometria.', 'erro');
+        }
+        atualizarSecaoBiometriaPerfil();
+        return;
+      }
+
+      try {
+        const r = cred.response;
+        const resposta = await bioChamar('biometriaRegistrar', [
+          bioBufParaB64u(r.clientDataJSON),
+          bioBufParaB64u(r.attestationObject),
+          bioNomeAparelho()
+        ]);
+        if (resposta && resposta.status === 'success') {
+          bioSalvarIdLocal(resposta.id || bioBufParaB64u(cred.rawId));
+          exibirToast('Biometria ativada neste aparelho!', 'sucesso');
+        } else {
+          exibirToast((resposta && resposta.message) ? resposta.message : 'Não foi possível ativar a biometria.', 'erro');
+        }
+      } catch (e) {
+        exibirToast('Erro de comunicação com o servidor.', 'erro');
+      }
+      atualizarSecaoBiometriaPerfil();
+    }
+
+    async function desativarBiometriaPerfil() {
+      const btn = document.getElementById('btnToggleBiometria');
+      if (btn) btn.disabled = true;
+      try {
+        await bioChamar('biometriaRemover', [bioIdLocal() || '']);
+        bioLimparLocal();
+        exibirToast('Biometria desativada neste aparelho.', 'sucesso');
+      } catch (e) {
+        exibirToast('Não foi possível desativar agora. Tente novamente.', 'erro');
+      }
+      atualizarSecaoBiometriaPerfil();
+    }
+
+    async function removerBiometriaTodos() {
+      if (!confirm('Remover a biometria de todos os aparelhos? Cada aparelho precisará ativá-la novamente.')) return;
+      try {
+        await bioChamar('biometriaRemover', ['*']);
+        bioLimparLocal();
+        exibirToast('Biometria removida de todos os aparelhos.', 'sucesso');
+      } catch (e) {
+        exibirToast('Não foi possível remover agora. Tente novamente.', 'erro');
+      }
+      atualizarSecaoBiometriaPerfil();
+    }
 
     function toggleMostrarSenha() {
       const campoSenha = document.getElementById('loginSenha');
@@ -791,6 +1122,7 @@
           document.getElementById('inputPerfilSenha').value = '';
           exibirFotoModalPerfil(userPhotoGlobal);
           document.getElementById('modalPerfil').classList.remove('hidden');
+          atualizarSecaoBiometriaPerfil();
         }).getUsuarioAtual();
       } else {
         document.getElementById('inputPerfilNome').value = localStorage.getItem('plipag_nome') || 'Usuário PliPag';
@@ -878,6 +1210,10 @@
             if (res && res.status === 'success') {
               fecharModalPerfil();
               exibirToast("Perfil atualizado com sucesso!", "sucesso");
+              if (res.senhaAlterada && bioIdLocal()) {
+                bioLimparLocal();
+                exibirToast("Por segurança, a biometria foi desativada. Ative novamente no Perfil.", "erro");
+              }
             } else {
               exibirToast(res.message || "Erro ao atualizar perfil.", "erro");
             }
@@ -913,6 +1249,7 @@
           document.getElementById('telaLogin').classList.remove('hidden');
           document.getElementById('loginSenha').value = '';
           exibirToast("Sessão encerrada com sucesso.", "sucesso");
+          prepararBiometriaLogin();
         }).logoutUsuario();
       } else {
         document.getElementById('telaLogin').classList.remove('hidden');
@@ -3163,6 +3500,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       inicializarTema();
       configurarCampoVoz();
+      prepararBiometriaLogin();
     });
   </script>
 </body>
