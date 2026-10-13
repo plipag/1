@@ -2659,9 +2659,9 @@
       const srcX = Math.round(imgW * (1 - frac) / 2);
       const w = Math.max(1, Math.round(imgW * frac));
       const h = imgH;
-      let escala = (lado || 1600) / Math.min(w, h);
-      escala = Math.max(0.25, Math.min(escala, 2.5));
-      const maxPixels = 8e6;
+      let escala = (lado || 2000) / Math.min(w, h);
+      escala = Math.max(0.25, Math.min(escala, 3));
+      const maxPixels = 12e6;
       if (w * h * escala * escala > maxPixels) escala = Math.sqrt(maxPixels / (w * h));
       const cw = Math.max(1, Math.round(w * escala));
       const ch = Math.max(1, Math.round(h * escala));
@@ -3026,7 +3026,7 @@
           onStatus('Conferindo o total do cupom...');
           try {
             canvas.width = 1; canvas.height = 1;   // libera memória antes do canvas maior
-            canvas = prepararCanvasOCR(img, false, 2400);
+            canvas = prepararCanvasOCR(img, false, 3000);
             const texto2 = await lerTextoComWorker(worker, canvas, '4');
             leituras.push({ texto: texto2, r: analisarTextoCupom(texto2) });
 
@@ -3034,7 +3034,7 @@
             if (!confirmado()) {
               onStatus('Lendo a faixa central do cupom...');
               canvas.width = 1; canvas.height = 1;
-              canvas = prepararCanvasOCR(img, false, 2200, 0.7);
+              canvas = prepararCanvasOCR(img, false, 2800, 0.7);
               const texto3 = await lerTextoComWorker(worker, canvas, '4');
               leituras.push({ texto: texto3, r: analisarTextoCupom(texto3) });
 
