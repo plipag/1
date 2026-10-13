@@ -851,12 +851,14 @@
       const bloco = document.getElementById('blocoLoginBiometria');
       if (!bloco) return;
       bioDesafioLogin = null;
-      if (!bioIdLocal() || !bioTemServidor() || !(await bioPlataformaDisponivel())) {
+      if (!bioTemServidor() || !(await bioPlataformaDisponivel())) {
         bloco.classList.add('hidden');
         return;
       }
-      bloco.classList.remove('hidden');
-      buscarDesafioBiometria();
+      // O botão aparece quando o servidor confirma que há biometria ativa (não depende de dado guardado no navegador).
+      const desafio = await buscarDesafioBiometria();
+      if (desafio) bloco.classList.remove('hidden');
+      else if (!bioIdLocal()) bloco.classList.add('hidden');
     }
 
     async function buscarDesafioBiometria() {
@@ -883,8 +885,7 @@
     async function entrarComBiometria() {
       const btn = document.getElementById('btnLoginBiometria');
       if (!btn || btn.disabled) return;
-      const id = bioIdLocal();
-      if (!id) { prepararBiometriaLogin(); return; }
+      const id = bioIdLocal();   // pode estar vazio (atalho da tela inicial usa armazenamento separado): o aparelho encontra a credencial
 
       // Usa o desafio já carregado: assim o pedido do Face ID acontece direto no toque (exigência do iPhone).
       let desafio = bioDesafioLogin;
@@ -905,7 +906,7 @@
         cred = await navigator.credentials.get({
           publicKey: {
             challenge: bioB64uParaBuf(desafio.challenge),
-            allowCredentials: [{ type: 'public-key', id: bioB64uParaBuf(id) }],
+            allowCredentials: id ? [{ type: 'public-key', id: bioB64uParaBuf(id) }] : [],
             userVerification: 'required',
             timeout: 60000
           }
@@ -914,6 +915,8 @@
         bioBotaoLogin(false);
         if (e && e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
           exibirToast('Biometria indisponível neste aparelho. Use a senha.', 'erro');
+        } else if (!id) {
+          exibirToast('Se ainda não ativou neste aparelho, entre com a senha e ative em Perfil.', 'erro');
         }
         buscarDesafioBiometria();
         return;
@@ -929,6 +932,7 @@
       ]).then(function(resposta) {
         bioBotaoLogin(false);
         if (resposta && resposta.status === 'success') {
+          bioSalvarIdLocal(bioBufParaB64u(cred.rawId));
           document.getElementById('telaLogin').classList.add('hidden');
           const fabContainer = document.getElementById('fabContainer');
           if (fabContainer) fabContainer.classList.remove('hidden');
@@ -1024,7 +1028,7 @@
             user: { id: bioB64uParaBuf(d.userId), name: d.usuario || 'plipag', displayName: d.nome || 'PliPag' },
             challenge: bioB64uParaBuf(d.challenge),
             pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-            authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'discouraged', userVerification: 'required' },
+            authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'required', requireResidentKey: true, userVerification: 'required' },
             attestation: 'none',
             timeout: 60000
           }
