@@ -24,6 +24,24 @@
     .dark .glass-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border-color: rgba(30, 41, 59, 0.8); }
     .light .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); border-color: rgba(226, 232, 240, 0.9); box-shadow: 0 10px 30px -5px rgba(148, 163, 184, 0.15); }
     #printAreaContainer { display: none; }
+    @media screen {
+      #printAreaContainer.visualizando { display: block; position: fixed; left: 0; right: 0; bottom: 0; top: 52px; overflow: auto; background: #ffffff; color: #0f172a; padding: 16px; box-sizing: border-box; z-index: 9998; -webkit-overflow-scrolling: touch; }
+      #printAreaContainer.visualizando > * { min-width: 640px; }
+      #printAreaContainer.visualizando .print-header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 20px; }
+      #printAreaContainer.visualizando .print-header h1 { margin: 0; font-size: 22px; color: #0f172a; }
+      #printAreaContainer.visualizando .print-header p { margin: 4px 0 0; font-size: 12px; color: #64748b; }
+      #printAreaContainer.visualizando .print-cards { display: flex; gap: 12px; margin-bottom: 20px; }
+      #printAreaContainer.visualizando .print-card { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; text-align: center; }
+      #printAreaContainer.visualizando .print-card-title { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: bold; }
+      #printAreaContainer.visualizando .print-card-val { font-size: 16px; font-weight: bold; margin-top: 4px; }
+      #printAreaContainer.visualizando .print-charts-grid { display: flex; gap: 15px; margin-bottom: 25px; }
+      #printAreaContainer.visualizando .print-chart-box { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: center; }
+      #printAreaContainer.visualizando .print-chart-box h4 { margin: 0 0 10px; font-size: 12px; color: #334155; }
+      #printAreaContainer.visualizando .print-chart-img { max-width: 100%; max-height: 200px; object-fit: contain; margin: 0 auto; }
+      #printAreaContainer.visualizando .print-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      #printAreaContainer.visualizando .print-table th { background: #0f172a; color: #fff; padding: 8px; text-align: left; text-transform: uppercase; font-size: 10px; }
+      #printAreaContainer.visualizando .print-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+    }
     th.sortable { cursor: pointer; user-select: none; }
     th.sortable:hover { background-color: rgba(255, 255, 255, 0.15); }
     
@@ -408,6 +426,14 @@
 
   </main>
 
+  <div id="barraRelatorio" class="hidden fixed top-0 left-0 right-0 h-[52px] z-[9999] flex items-center justify-between gap-2 px-3 bg-slate-900 text-white shadow-lg">
+    <button onclick="fecharRelatorio()" class="px-3 py-2 text-xs font-semibold rounded-xl bg-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-xmark"></i><span>Fechar</span></button>
+    <span class="text-xs font-semibold truncate">Relatório</span>
+    <div class="flex items-center gap-2">
+      <button onclick="imprimirAgora()" class="px-3 py-2 text-xs font-semibold rounded-xl bg-sky-600 flex items-center gap-1.5"><i class="fa-solid fa-print"></i><span>Imprimir</span></button>
+      <button id="btnPdfRelatorio" onclick="compartilharPdfRelatorio()" class="px-3 py-2 text-xs font-semibold rounded-xl bg-emerald-600 flex items-center gap-1.5"><i class="fa-solid fa-file-pdf"></i><span>PDF</span></button>
+    </div>
+  </div>
   <div id="printAreaContainer"></div>
 
   <!-- BOTÃO FLUTUANTE CELULAR (Oculto antes do login) -->
@@ -1500,7 +1526,64 @@
         </table>
       `;
 
-      setTimeout(() => { window.print(); }, 300);
+      // Mostra o relatório na tela (no APK/WebView a impressão direta não funciona)
+      printContainer.classList.add('visualizando');
+      printContainer.scrollTop = 0;
+      document.getElementById('barraRelatorio').classList.remove('hidden');
+    }
+
+    function fecharRelatorio() {
+      document.getElementById('printAreaContainer').classList.remove('visualizando');
+      document.getElementById('barraRelatorio').classList.add('hidden');
+    }
+
+    function imprimirAgora() {
+      try { window.print(); } catch (e) { exibirToast("Impressão indisponível aqui. Use o botão PDF.", "erro"); }
+    }
+
+    // Gera o PDF do relatório e compartilha/baixa (funciona onde a impressão do navegador não existe)
+    function carregarHtml2Pdf() {
+      return new Promise((resolve, reject) => {
+        if (window.html2pdf) return resolve();
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('falha ao carregar'));
+        document.head.appendChild(s);
+      });
+    }
+
+    async function compartilharPdfRelatorio() {
+      const btn = document.getElementById('btnPdfRelatorio');
+      const rotulo = btn.innerHTML;
+      btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Gerando...</span>';
+      try {
+        await carregarHtml2Pdf();
+        const alvo = document.getElementById('printAreaContainer');
+        const nome = `relatorio_plipag_${dataLocalISO()}.pdf`;
+        const blob = await html2pdf().from(alvo).set({
+          margin: 8, filename: nome,
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: 2, useCORS: true, scrollY: 0, windowWidth: 700 },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak: { mode: ['css', 'legacy'], avoid: 'tr' }
+        }).outputPdf('blob');
+        const arquivo = new File([blob], nome, { type: 'application/pdf' });
+        if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+          await navigator.share({ files: [arquivo], title: 'Relatório PliPag' });
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = nome;
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+          exibirToast("PDF gerado. Verifique os downloads.", "sucesso");
+        }
+      } catch (e) {
+        if (!(e && e.name === 'AbortError')) exibirToast("Não foi possível gerar o PDF.", "erro");
+      } finally {
+        btn.disabled = false; btn.innerHTML = rotulo;
+      }
     }
 
     function normalizarFormaPagto(f) {
