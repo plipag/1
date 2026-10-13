@@ -472,8 +472,8 @@
   <div id="modalLimparLancamentos" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
     <div class="glass-panel w-full max-w-sm p-6 rounded-2xl border border-rose-500/30 text-center">
       <div class="w-14 h-14 rounded-full bg-rose-500/20 text-rose-500 mx-auto flex items-center justify-center text-2xl mb-3"><i class="fa-solid fa-triangle-exclamation"></i></div>
-      <h3 class="text-lg font-bold theme-text mb-1">Limpar todos os lançamentos?</h3>
-      <p class="text-xs theme-subtext mb-3">Todos os lançamentos da planilha serão apagados e esta ação não pode ser desfeita. Se precisar, use Exportar antes.</p>
+      <h3 id="tituloLimpar" class="text-lg font-bold theme-text mb-1">Limpar todos os lançamentos?</h3>
+      <p id="textoLimpar" class="text-xs theme-subtext mb-3">Todos os lançamentos da planilha serão apagados e esta ação não pode ser desfeita. Se precisar, use Exportar antes.</p>
       <p class="text-xs theme-subtext mb-2">Digite <b>LIMPAR</b> para confirmar:</p>
       <input id="inputConfirmarLimpar" type="text" autocomplete="off" autocapitalize="characters" oninput="document.getElementById('btnConfirmarLimpar').disabled = this.value.trim().toUpperCase() !== 'LIMPAR'" class="w-full mb-4 px-3 py-2 text-sm text-center rounded-xl bg-slate-900/60 border border-slate-700 text-white outline-none focus:border-rose-500">
       <div class="flex items-center justify-center gap-3">
@@ -1336,7 +1336,21 @@
         .importTransactions(itens.slice(inicio, inicio + TAM));
     }
 
+    // Sem filtro ativo = todos os lançamentos; com filtro = só os que aparecem na lista filtrada
+    let idsLimpar = null;
     function abrirModalLimparLancamentos() {
+      const filtrados = obterTransacoesFiltradas() || [];
+      const total = (listaTransacoesGlobal || []).length;
+      const comFiltro = filtrados.length < total;
+      idsLimpar = comFiltro ? filtrados.map(t => String(t.id)) : null;
+      if (!comFiltro && total === 0) { exibirToast("Não há lançamentos para limpar.", "erro"); return; }
+      document.getElementById('tituloLimpar').innerText = comFiltro
+        ? `Limpar ${filtrados.length} lançamento${filtrados.length === 1 ? '' : 's'} do filtro?`
+        : 'Limpar todos os lançamentos?';
+      document.getElementById('textoLimpar').innerText = comFiltro
+        ? 'Somente os lançamentos exibidos no filtro atual serão apagados e esta ação não pode ser desfeita. Se precisar, use Exportar antes.'
+        : 'Todos os lançamentos da planilha serão apagados e esta ação não pode ser desfeita. Se precisar, use Exportar antes.';
+      if (comFiltro && filtrados.length === 0) { exibirToast("Nenhum lançamento no filtro atual.", "erro"); return; }
       const inp = document.getElementById('inputConfirmarLimpar');
       inp.value = '';
       document.getElementById('btnConfirmarLimpar').disabled = true;
@@ -1350,16 +1364,24 @@
     function executarLimparLancamentos() {
       if (document.getElementById('inputConfirmarLimpar').value.trim().toUpperCase() !== 'LIMPAR') return;
       fecharModalLimparLancamentos();
-      google.script.run
+      const ids = idsLimpar;
+      const runner = google.script.run
         .withSuccessHandler(function() {
-          listaTransacoesGlobal = [];
+          if (ids) {
+            const set = new Set(ids);
+            listaTransacoesGlobal = listaTransacoesGlobal.filter(t => !set.has(String(t.id)));
+          } else {
+            listaTransacoesGlobal = [];
+          }
+          atualizarOpcoesCategorias(listaTransacoesGlobal);
+          renderizarDados(obterTransacoesFiltradas());
           carregarDados();
-          exibirToast("Todos os lançamentos foram apagados.", "sucesso");
+          exibirToast(ids ? "Lançamentos do filtro apagados." : "Todos os lançamentos foram apagados.", "sucesso");
         })
         .withFailureHandler(function() {
           exibirToast("Não foi possível limpar os lançamentos.", "erro");
-        })
-        .clearTransactions();
+        });
+      if (ids) runner.deleteTransactions(ids); else runner.clearTransactions();
     }
 
     function toggleFabMenu() {
