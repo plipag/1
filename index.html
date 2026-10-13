@@ -104,7 +104,7 @@
 
     @media print {
       body > *:not(#printAreaContainer) { display: none !important; }
-      #printAreaContainer { display: block !important; position: absolute; left: 0; top: 0; width: 100%; background: #ffffff !important; color: #0f172a !important; padding: 20px; box-sizing: border-box; }
+      #printAreaContainer { display: block !important; position: static; width: 100%; background: #ffffff !important; color: #0f172a !important; padding: 20px; box-sizing: border-box; }
       .print-header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 20px; }
       .print-header h1 { margin: 0; font-size: 22px; color: #0f172a; }
       .print-header p { margin: 4px 0 0; font-size: 12px; color: #64748b; }
@@ -121,7 +121,8 @@
       .print-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
       .print-table thead { display: table-header-group; }
       .print-table tr { page-break-inside: avoid; }
-      .print-table .print-repeat-title th { background: #ffffff; color: #0f172a; text-align: center; font-size: 12px; text-transform: none; border-bottom: 2px solid #0f172a; padding: 6px 8px; }
+      .print-table .print-repeat-title th { background: #ffffff; color: #0f172a; text-align: center; text-transform: none; padding: 0 0 8px 0; }
+      .print-table .print-repeat-title .print-header h1 { font-size: 18px; }
     }
   </style>
 </head>
@@ -1462,7 +1463,7 @@
           <div class="print-chart-box"><h4>Tendência</h4>${imgTendBase64 ? `<img src="${imgTendBase64}" class="print-chart-img" />` : ''}</div>
         </div>
         <table class="print-table">
-          <thead><tr class="print-repeat-title"><th colspan="6">PliPag - Relatório Financeiro &nbsp;|&nbsp; ${periodoTxt}</th></tr><tr><th>Tipo</th><th>Descrição</th><th>Categoria</th><th>Data</th><th style="text-align: right;">Valor</th><th>Pagto</th></tr></thead>
+          <thead><tr class="print-repeat-title"><th colspan="6"><div class="print-header" style="margin-bottom:0;"><h1>PliPag - Relatório Financeiro</h1><p><strong>Período:</strong> ${periodoTxt} | <strong>Gerado em:</strong> ${new Date().toLocaleDateString('pt-BR')}</p></div></th></tr><tr><th>Tipo</th><th>Descrição</th><th>Categoria</th><th>Data</th><th style="text-align: right;">Valor</th><th>Pagto</th></tr></thead>
           <tbody>${tabelaRows || '<tr><td colspan="6" style="text-align:center;">Nenhum registro.</td></tr>'}</tbody>
         </table>
       `;
