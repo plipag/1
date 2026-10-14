@@ -623,8 +623,8 @@
             <label class="block text-xs font-semibold theme-subtext mb-1">Tipo</label>
             <select id="inputTipo" onchange="aoMudarTipoLancamento()" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
               <option value="" selected></option>
-              <option value="Receita">Receita (Entrada)</option>
-              <option value="Despesa">Despesa (Saída)</option>
+              <option value="Receita">Receita</option>
+              <option value="Despesa">Despesa</option>
             </select>
           </div>
           <div>
@@ -3639,14 +3639,47 @@
       return final;
     }
 
-    // Recorta só o topo do cupom (onde ficam o nome do estabelecimento, o CNPJ e o endereço)
+    // Acha onde o papel do cupom começa na foto (0 a 1, a partir do topo). Foto de câmera costuma ter mesa ou
+    // fundo escuro acima do cupom; o papel é a faixa clara. Se não houver fundo, devolve 0.
+    function topoDoPapelCupom(img) {
+      try {
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        const cw = 120, ch = Math.max(20, Math.round(120 * h / w));
+        const c = document.createElement('canvas');
+        c.width = cw; c.height = ch;
+        const ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0, cw, ch);
+        const d = ctx.getImageData(0, 0, cw, ch).data;
+        const linhas = [];
+        for (let y = 0; y < ch; y++) {
+          let soma = 0;
+          for (let x = 0; x < cw; x++) { const i = (y * cw + x) * 4; soma += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; }
+          linhas.push(soma / cw);
+        }
+        const ordenadas = linhas.slice().sort(function(a, b) { return a - b; });
+        const claro = ordenadas[Math.floor(ordenadas.length * 0.9)];
+        if (!(claro > 90)) return 0;                       // imagem escura demais para decidir
+        const limiar = claro * 0.75;
+        for (let y = 0; y < ch - 3; y++) {
+          if (linhas[y] >= limiar && linhas[y + 1] >= limiar && linhas[y + 2] >= limiar) {
+            return Math.min(0.4, Math.max(0, y / ch));
+          }
+        }
+      } catch (e) {}
+      return 0;
+    }
+
+    // Recorta só o topo do cupom (onde ficam o nome do estabelecimento, o CNPJ e o endereço),
+    // a partir de onde o papel começa
     function recortarTopoCupom(img, fracAltura) {
       const w = img.naturalWidth || img.width;
       const h = img.naturalHeight || img.height;
-      const ch = Math.max(1, Math.round(h * fracAltura));
+      const y0 = Math.round(h * topoDoPapelCupom(img));
+      const ch = Math.max(1, Math.min(h - y0, Math.round((h - y0) * fracAltura)));
       const c = document.createElement('canvas');
       c.width = w; c.height = ch;
-      c.getContext('2d').drawImage(img, 0, 0, w, ch, 0, 0, w, ch);
+      c.getContext('2d').drawImage(img, 0, y0, w, ch, 0, 0, w, ch);
       return c;
     }
 
