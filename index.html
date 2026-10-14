@@ -364,7 +364,7 @@
 
       <div class="glass-panel p-5 rounded-2xl border border-slate-800">
         <div class="flex items-center justify-between theme-subtext mb-2">
-          <span class="text-xs font-semibold uppercase tracking-wider">Entradas (Receitas)</span>
+          <span class="text-xs font-semibold uppercase tracking-wider">Receita</span>
           <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center"><i class="fa-solid fa-arrow-trend-up text-sm"></i></div>
         </div>
         <div id="cardReceitas" class="text-3xl font-extrabold text-emerald-500">R$ 0,00</div>
@@ -377,7 +377,7 @@
       <div class="glass-panel p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
         <div>
           <div class="flex items-center justify-between theme-subtext mb-2">
-            <span class="text-xs font-semibold uppercase tracking-wider">Saídas (Despesas)</span>
+            <span class="text-xs font-semibold uppercase tracking-wider">Despesa</span>
             <div class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center"><i class="fa-solid fa-arrow-trend-down text-sm"></i></div>
           </div>
           <div id="cardDespesas" class="text-3xl font-extrabold text-rose-500">R$ 0,00</div>
@@ -498,7 +498,7 @@
     <button onclick="fecharRelatorio()" class="px-3 py-2 text-xs font-semibold rounded-xl bg-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-xmark"></i><span>Fechar</span></button>
     <span class="text-xs font-semibold truncate">Relatório</span>
     <div class="flex items-center gap-2">
-      <button onclick="imprimirAgora()" class="px-3 py-2 text-xs font-semibold rounded-xl bg-sky-600 flex items-center gap-1.5"><i class="fa-solid fa-print"></i><span>Imprimir</span></button>
+      <button id="btnImprimirRelatorio" onclick="imprimirAgora()" class="px-3 py-2 text-xs font-semibold rounded-xl bg-sky-600 flex items-center gap-1.5"><i class="fa-solid fa-print"></i><span>Imprimir</span></button>
       <button id="btnPdfRelatorio" onclick="compartilharPdfRelatorio()" class="px-3 py-2 text-xs font-semibold rounded-xl bg-emerald-600 flex items-center gap-1.5"><i class="fa-solid fa-file-pdf"></i><span>PDF</span></button>
     </div>
   </div>
@@ -508,10 +508,11 @@
   <div id="modalPdfPronto" class="hidden fixed inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" style="z-index: 10000;">
     <div class="glass-panel w-full max-w-sm p-5 rounded-2xl border border-slate-700 relative text-center">
       <div class="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-500 mx-auto flex items-center justify-center text-2xl mb-3"><i class="fa-solid fa-file-pdf"></i></div>
-      <h3 class="text-base font-bold theme-text mb-1">PDF pronto</h3>
-      <p id="pdfProntoNome" class="text-xs theme-subtext mb-4 break-all"></p>
+      <h3 id="pdfProntoTitulo" class="text-base font-bold theme-text mb-1">PDF pronto</h3>
+      <p id="pdfProntoNome" class="text-xs theme-subtext mb-2 break-all"></p>
+      <p id="pdfProntoDica" class="hidden text-xs theme-subtext mb-4"></p>
       <div class="space-y-2.5">
-        <button type="button" id="btnPdfCompartilhar" onclick="enviarPdfGerado()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-md"><i class="fa-solid fa-share-nodes"></i> Enviar / Compartilhar</button>
+        <button type="button" id="btnPdfCompartilhar" onclick="enviarPdfGerado()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-md"><i class="fa-solid fa-share-nodes"></i> <span id="rotuloEnviarPdf">Enviar / Compartilhar</span></button>
         <button type="button" onclick="baixarPdfGerado()" class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-md"><i class="fa-solid fa-download"></i> Salvar no celular</button>
         <button type="button" onclick="fecharModalPdfPronto()" class="w-full py-2.5 bg-slate-800 text-white rounded-xl text-xs font-semibold">Fechar</button>
       </div>
@@ -607,7 +608,7 @@
     <div class="glass-panel w-full max-w-md p-6 rounded-2xl border border-slate-700 relative max-h-[90vh] overflow-y-auto">
       <button onclick="fecharXModalTransacao()" class="absolute top-4 right-4 theme-subtext hover:text-emerald-500"><i class="fa-solid fa-xmark text-lg"></i></button>
       <h3 id="modalTransacaoTitulo" class="text-lg font-bold mb-3 theme-text">Nova Transação</h3>
-      <div id="btnDigitalizarForm" class="md:hidden flex items-center justify-end gap-1.5 mb-3">
+      <div id="btnDigitalizarForm" class="md:hidden flex items-center justify-center gap-2 mb-3">
         <button type="button" onclick="abrirEscolhaOrigemImagem()" class="px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs rounded-xl flex items-center gap-1.5 shadow-md transition">
           <i class="fa-solid fa-camera"></i> Digitalizar
         </button>
@@ -669,10 +670,10 @@
           <summary class="cursor-pointer font-semibold">Ver texto lido do cupom</summary>
           <pre id="textoCupomLido" class="mt-2 p-2 bg-slate-900 text-slate-200 rounded-xl whitespace-pre-wrap break-words max-h-40 overflow-y-auto"></pre>
         </details>
-        <div class="flex items-center justify-end gap-2 mt-5">
+        <div class="flex items-center justify-center gap-2 mt-5">
           <input type="file" id="cameraInputModal" accept="image/*" capture="environment" class="hidden" onchange="processarFotoModal(event)">
           <input type="file" id="galeriaInputModal" accept="image/*" class="hidden" onchange="processarFotoModal(event)">
-          <div class="flex items-center gap-2 ml-auto">
+          <div class="flex items-center justify-center gap-2 mx-auto">
             <button type="button" onclick="cancelarModalTransacao()" class="px-3.5 py-2 bg-slate-800 text-white rounded-xl text-xs font-semibold">Cancelar</button>
             <button type="submit" id="btnSalvar" class="px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-semibold">Salvar</button>
           </div>
@@ -2054,8 +2055,8 @@
           <p><strong>Período:</strong> ${periodoTxt} | <strong>Gerado em:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
         </div>
         <div class="print-cards">
-          <div class="print-card"><div class="print-card-title">Entradas</div><div class="print-card-val" style="color: #10b981;">R$ ${totalEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>
-          <div class="print-card"><div class="print-card-title">Saídas</div><div class="print-card-val" style="color: #f43f5e;">R$ ${totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>
+          <div class="print-card"><div class="print-card-title">Receita</div><div class="print-card-val" style="color: #10b981;">R$ ${totalEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>
+          <div class="print-card"><div class="print-card-title">Despesa</div><div class="print-card-val" style="color: #f43f5e;">R$ ${totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>
           <div class="print-card"><div class="print-card-title">Saldo</div><div class="print-card-val" style="color: ${saldoTotal >= 0 ? '#10b981' : '#f43f5e'};">R$ ${saldoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>
         </div>
         <div class="print-charts-grid">
@@ -2083,7 +2084,15 @@
       document.getElementById('barraRelatorio').classList.add('hidden');
     }
 
+    // iPhone/iPad (inclui iPad que se identifica como Mac)
+    function ehDispositivoIOS() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+
     function imprimirAgora() {
+      // No iPhone/iPad o window.print() não abre a visualização (principalmente no atalho da tela inicial).
+      // Então gera o PDF e abre a janela de compartilhar, onde existe a opção "Imprimir" com visualização.
+      if (ehDispositivoIOS()) { compartilharPdfRelatorio('imprimir'); return; }
       try { window.print(); } catch (e) { exibirToast("Impressão indisponível aqui. Use o botão PDF.", "erro"); }
     }
 
@@ -2100,13 +2109,16 @@
     }
 
     // O PDF é gerado primeiro; só depois de pronto aparece a janela com os botões de enviar/salvar.
-    let pdfGerado = null;   // { blob, arquivo, nome }
+    let pdfGerado = null;   // { blob, arquivo, nome, modo }
 
-    async function compartilharPdfRelatorio() {
-      const btn = document.getElementById('btnPdfRelatorio');
-      if (btn.disabled) return;
+    async function compartilharPdfRelatorio(modo) {
+      const imprimir = (modo === 'imprimir');
+      const botoes = [document.getElementById('btnImprimirRelatorio'), document.getElementById('btnPdfRelatorio')];
+      if (botoes.some(function(b) { return b.disabled; })) return;
+      const btn = imprimir ? botoes[0] : botoes[1];
       const rotulo = btn.innerHTML;
-      btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Gerando...</span>';
+      botoes.forEach(function(b) { b.disabled = true; });
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Gerando...</span>';
       try {
         await carregarHtml2Pdf();
         // Cópia própria do relatório: a área da tela é "fixed" e tem altura limitada, o que deixava o PDF em branco.
@@ -2117,24 +2129,31 @@
         const blob = await html2pdf().from(alvo).set({
           margin: 8, filename: nome,
           image: { type: 'jpeg', quality: 0.95 },
-          html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: 800, backgroundColor: '#ffffff' },
+          // iPhone/iPad limitam o tamanho da imagem (canvas); escala menor evita falha em relatórios longos
+          html2canvas: { scale: ehDispositivoIOS() ? 1.4 : 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: 800, backgroundColor: '#ffffff' },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
           pagebreak: { mode: ['css', 'legacy'], avoid: 'tr' }
         }).outputPdf('blob');
-        pdfGerado = { blob: blob, arquivo: new File([blob], nome, { type: 'application/pdf' }), nome: nome };
+        pdfGerado = { blob: blob, arquivo: new File([blob], nome, { type: 'application/pdf' }), nome: nome, modo: imprimir ? 'imprimir' : 'pdf' };
         mostrarModalPdfPronto();
       } catch (e) {
         exibirToast("Não foi possível gerar o PDF.", "erro");
       } finally {
-        btn.disabled = false; btn.innerHTML = rotulo;
+        botoes.forEach(function(b) { b.disabled = false; });
+        btn.innerHTML = rotulo;
       }
     }
 
     function mostrarModalPdfPronto() {
       if (!pdfGerado) return;
+      const imprimir = pdfGerado.modo === 'imprimir';
+      document.getElementById('pdfProntoTitulo').textContent = imprimir ? 'Pronto para imprimir' : 'PDF pronto';
       document.getElementById('pdfProntoNome').textContent = pdfGerado.nome;
-      const podeCompartilhar = !!(navigator.canShare && navigator.share && navigator.canShare({ files: [pdfGerado.arquivo] }));
-      document.getElementById('btnPdfCompartilhar').classList.toggle('hidden', !podeCompartilhar);
+      const dica = document.getElementById('pdfProntoDica');
+      dica.textContent = imprimir ? 'Toque em "Imprimir / Compartilhar" e, na janela que abrir, escolha Imprimir para ver a visualização.' : '';
+      dica.classList.toggle('hidden', !imprimir);
+      document.getElementById('rotuloEnviarPdf').textContent = imprimir ? 'Imprimir / Compartilhar' : 'Enviar / Compartilhar';
+      document.getElementById('btnPdfCompartilhar').classList.remove('hidden');   // sempre visível (iPhone e Android)
       document.getElementById('modalPdfPronto').classList.remove('hidden');
     }
 
@@ -2144,11 +2163,15 @@
 
     async function enviarPdfGerado() {
       if (!pdfGerado) return;
-      try {
-        await navigator.share({ files: [pdfGerado.arquivo], title: 'Relatório PliPag' });
-      } catch (e) {
-        if (!(e && e.name === 'AbortError')) exibirToast('Não foi possível compartilhar. Use "Salvar no celular".', 'erro');
+      const dados = { files: [pdfGerado.arquivo], title: 'Relatório PliPag' };
+      // Tenta sempre compartilhar o arquivo; alguns navegadores (iPhone) respondem "não" no teste prévio mas compartilham.
+      if (navigator.share) {
+        try { await navigator.share(dados); return; }
+        catch (e) { if (e && e.name === 'AbortError') return; }
       }
+      // Plano B: este navegador não compartilha arquivos
+      baixarPdfGerado();
+      exibirToast('Este aparelho não permite compartilhar o arquivo. O PDF foi salvo: procure em Arquivos/Downloads.', 'erro');
     }
 
     function baixarPdfGerado() {
@@ -3368,10 +3391,70 @@
       return worker;
     }
 
+    // Linha de "lixo" do OCR: símbolos estranhos, letras soltas, pontuação demais ou confiança baixa.
+    // Linhas de valor/total/pagamento nunca são descartadas, para não perder o que importa ao lançamento.
+    function linhaIlegivelOCR(txt, confianca) {
+      const t = String(txt || '').trim();
+      if (!t) return false;
+      if (/\d+[.,]\d{2}\b/.test(t) && /(TOTAL|VALOR|PAGAR|PAGO|PIX|D[EÉ]BITO|CR[EÉ]DITO|DINHEIRO|TROCO)/i.test(t)) return false;
+      const semEsp = t.replace(/\s/g, '');
+      const letras = (t.match(/[A-Za-zÀ-ÿ]/g) || []).length;
+      const digitos = (t.match(/\d/g) || []).length;
+      const estranhos = (t.match(/[^A-Za-zÀ-ÿ0-9\s.,:;\/\-–&%$()#*+@'"|]/g) || []).length;
+      const pontuacao = semEsp.length - letras - digitos;
+      const tokens = t.split(/\s+/).filter(Boolean);
+      const soltos = tokens.filter(function(w) { return w.replace(/[^A-Za-zÀ-ÿ0-9]/g, '').length <= 1; }).length;
+      if (letras + digitos < 3) return true;
+      if (estranhos / semEsp.length > 0.12) return true;
+      if (pontuacao / semEsp.length > 0.4) return true;
+      if (tokens.length >= 4 && soltos / tokens.length > 0.5) return true;
+      if (typeof confianca === 'number' && confianca < 50 && (estranhos > 0 || soltos / tokens.length > 0.3)) return true;
+      return false;
+    }
+
+    // Monta o texto do cupom só com as linhas legíveis (usa a confiança do OCR quando ela existe)
+    function textoConfiavelOCR(data) {
+      const bruto = (data && data.text) ? data.text : '';
+      const linhasOCR = (data && Array.isArray(data.lines) && data.lines.length) ? data.lines : null;
+      const origem = linhasOCR
+        ? linhasOCR.map(function(l) { return { t: String(l.text || '').replace(/\n+$/, ''), c: l.confidence }; })
+        : bruto.split('\n').map(function(t) { return { t: t, c: null }; });
+      return origem
+        .filter(function(l) { return !linhaIlegivelOCR(l.t, l.c); })
+        .map(function(l) { return l.t.replace(/[»«“”‘’`´~^_\\<>¬¨§¦]/g, ' ').replace(/[ \t]{2,}/g, ' ').trim(); })
+        .filter(Boolean)
+        .join('\n');
+    }
+
+    // Nome de estabelecimento só vale se parecer texto de verdade (palavras com vogais, sem símbolos nem letras soltas)
+    function nomeLegivel(nome) {
+      const n = String(nome || '').trim();
+      if (!n) return false;
+      if (n.replace(/[A-Za-zÀ-ÿ0-9\s&.,'()\-\/]/g, '').length > 0) return false;
+      const palavras = n.split(/\s+/).map(function(t) { return t.replace(/[^A-Za-zÀ-ÿ0-9]/g, ''); }).filter(Boolean);
+      if (!palavras.length) return false;
+      const conectores = /^(e|de|da|do|das|dos|a|o)$/i;
+      let validas = 0;
+      palavras.forEach(function(p) {
+        const letras = p.replace(/[^A-Za-zÀ-ÿ]/g, '');
+        if (conectores.test(p) || letras.length === 0) { validas++; return; }
+        if (letras.length === 1) return;
+        const temVogal = /[AEIOUYaeiouyÀ-ÿ]/.test(letras.replace(/[Çç]/g, ''));
+        const sigla = letras.length <= 3 && letras === letras.toUpperCase();
+        if (!temVogal && !sigla) return;
+        if (/[BCDFGHJKLMNPQRSTVWXZbcdfghjklmnpqrstvwxz]{5,}/.test(letras)) return;
+        validas++;
+      });
+      if (validas / palavras.length < 0.8) return false;
+      const maiusc = palavras.filter(function(p) { return p.length >= 3 && p === p.toUpperCase() && /[A-ZÀ-Ý]/.test(p); }).length;
+      const minusc = palavras.filter(function(p) { return p.length >= 2 && p === p.toLowerCase() && !conectores.test(p) && /[a-zà-ÿ]/.test(p); }).length;
+      return !(maiusc >= 2 && minusc >= 1);
+    }
+
     async function lerTextoComWorker(worker, canvas, modoPagina) {
       await worker.setParameters({ tessedit_pageseg_mode: String(modoPagina || '4') });
       const resultado = await worker.recognize(canvas);
-      return (resultado && resultado.data && resultado.data.text) ? resultado.data.text : '';
+      return textoConfiavelOCR(resultado && resultado.data);
     }
 
     // Um cupom tem centenas de caracteres; bem menos que isso indica leitura falha
@@ -3540,12 +3623,15 @@
       const nomeValido = function(nome) {
         const alnum = nome.replace(/[^a-zA-Z0-9À-ÿ]/g, '').length;
         const letras = nome.replace(/[^a-zA-ZÀ-ÿ]/g, '').length;
-        return alnum >= 3 && /[a-zA-ZÀ-ÿ]{4,}/.test(nome) && letras / alnum >= 0.7;
+        return alnum >= 3 && /[a-zA-ZÀ-ÿ]{4,}/.test(nome) && letras / alnum >= 0.7 && nomeLegivel(nome);
       };
       const cabecalhoCupom = /^(C\s?N\s?P|CPF|I\.?\s?E\b|INSC|R\.?\s+[A-Z]|RUA\b|AV\b|AVENIDA|RODOVIA|DOCUMENTO|DANFE|NFC|CUPOM|FONE|TEL\b|CEP\b)/;
+      // A partir daqui o cupom já é "corpo" (itens, total, pagamento): o nome do estabelecimento não está mais lá
+      const corpoCupom = /^(#|COD\b)|\b(DESCRI\w*|QTD|TOTAL|VALOR|ITENS?|FORMA|PAGAMENTO|D[EÉ]BITO|CR[EÉ]DITO|PIX|DINHEIRO|TROCO|SUBTOTAL)\b/;
       let idxCnpj = -1;
       for (let i = 0; i < linhas.length; i++) {
         if (cabecalhoCupom.test(up(linhas[i]))) { idxCnpj = i; break; }
+        if (corpoCupom.test(up(linhas[i]))) break;
         const nome = limparNome(linhas[i].split(/\bC\s?N\s?P\s?J/i)[0]);
         if (nomeValido(nome)) { res.loja = nome; break; }
       }
@@ -3553,7 +3639,7 @@
       if (!res.loja) {
         let fimCab = linhas.length;
         for (let i = 0; i < linhas.length; i++) {
-          if (/DOCUMENTO|DANFE|NFC|CUPOM\s*FISCAL|^#|\bCOD\b|DESCRI/.test(up(linhas[i]))) { fimCab = i; break; }
+          if (/DOCUMENTO|DANFE|NFC|CUPOM\s*FISCAL|^#|\bCOD\b|DESCRI/.test(up(linhas[i])) || corpoCupom.test(up(linhas[i]))) { fimCab = i; break; }
         }
         fimCab = Math.min(fimCab, 12);
         const ehEndereco = /^(R\.?\s+[A-Z]|RUA\b|AV\b|AVENIDA|RODOVIA|FONE|TEL\b|CEP\b|I\.?\s?E\b|INSC|CPF|\d)/;
