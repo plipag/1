@@ -42,6 +42,22 @@
       #printAreaContainer.visualizando .print-table th { background: #0f172a; color: #fff; padding: 8px; text-align: left; text-transform: uppercase; font-size: 10px; }
       #printAreaContainer.visualizando .print-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
     }
+    /* Cópia usada só para gerar o PDF (html2pdf): sem position:fixed nem altura limitada, para não sair em branco */
+    .pdf-render { display: block; position: static; background: #ffffff; color: #0f172a; padding: 0; box-sizing: border-box; width: 100%; font-family: Arial, Helvetica, sans-serif; }
+    .pdf-render .print-header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 20px; }
+    .pdf-render .print-header h1 { margin: 0; font-size: 22px; color: #0f172a; }
+    .pdf-render .print-header p { margin: 4px 0 0; font-size: 12px; color: #64748b; }
+    .pdf-render .print-cards { display: flex; gap: 12px; margin-bottom: 20px; }
+    .pdf-render .print-card { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; text-align: center; }
+    .pdf-render .print-card-title { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: bold; }
+    .pdf-render .print-card-val { font-size: 16px; font-weight: bold; margin-top: 4px; }
+    .pdf-render .print-charts-grid { display: flex; gap: 15px; margin-bottom: 25px; }
+    .pdf-render .print-chart-box { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: center; }
+    .pdf-render .print-chart-box h4 { margin: 0 0 10px; font-size: 12px; color: #334155; }
+    .pdf-render .print-chart-img { max-width: 100%; max-height: 200px; object-fit: contain; margin: 0 auto; }
+    .pdf-render .print-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .pdf-render .print-table th { background: #0f172a; color: #fff; padding: 8px; text-align: left; text-transform: uppercase; font-size: 10px; }
+    .pdf-render .print-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
     th.sortable { cursor: pointer; user-select: none; }
     th.sortable:hover { background-color: rgba(255, 255, 255, 0.15); }
     
@@ -2039,12 +2055,15 @@
       btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Gerando...</span>';
       try {
         await carregarHtml2Pdf();
-        const alvo = document.getElementById('printAreaContainer');
+        // Cópia própria do relatório: a área da tela é "fixed" e tem altura limitada, o que deixava o PDF em branco.
+        const alvo = document.createElement('div');
+        alvo.className = 'pdf-render';
+        alvo.innerHTML = document.getElementById('printAreaContainer').innerHTML;
         const nome = `relatorio_plipag_${dataLocalISO()}.pdf`;
         const blob = await html2pdf().from(alvo).set({
           margin: 8, filename: nome,
           image: { type: 'jpeg', quality: 0.95 },
-          html2canvas: { scale: 2, useCORS: true, scrollY: 0, windowWidth: 700 },
+          html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: 800, backgroundColor: '#ffffff' },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
           pagebreak: { mode: ['css', 'legacy'], avoid: 'tr' }
         }).outputPdf('blob');
