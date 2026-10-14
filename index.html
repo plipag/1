@@ -42,6 +42,24 @@
       #printAreaContainer.visualizando .print-table th { background: #0f172a; color: #fff; padding: 8px; text-align: left; text-transform: uppercase; font-size: 10px; }
       #printAreaContainer.visualizando .print-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
     }
+    /* Celular: o relatório se ajusta à largura da tela (sem rolagem para os lados) */
+    @media screen and (max-width: 640px) {
+      #printAreaContainer.visualizando { padding: 10px; }
+      #printAreaContainer.visualizando > * { min-width: 0; }
+      #printAreaContainer.visualizando .print-header { margin-bottom: 12px; padding-bottom: 8px; }
+      #printAreaContainer.visualizando .print-header h1 { font-size: 17px; }
+      #printAreaContainer.visualizando .print-header p { font-size: 10px; }
+      #printAreaContainer.visualizando .print-cards { gap: 6px; margin-bottom: 12px; }
+      #printAreaContainer.visualizando .print-card { padding: 6px 4px; min-width: 0; }
+      #printAreaContainer.visualizando .print-card-title { font-size: 9px; }
+      #printAreaContainer.visualizando .print-card-val { font-size: 11px; word-break: break-word; }
+      #printAreaContainer.visualizando .print-charts-grid { flex-direction: column; gap: 10px; margin-bottom: 14px; }
+      #printAreaContainer.visualizando .print-chart-img { max-height: 170px; }
+      #printAreaContainer.visualizando .print-table { font-size: 9px; }
+      #printAreaContainer.visualizando .print-table th { padding: 5px 3px; font-size: 8px; }
+      #printAreaContainer.visualizando .print-table td { padding: 5px 3px; word-break: break-word; }
+      #printAreaContainer.visualizando .print-table td:nth-child(4), #printAreaContainer.visualizando .print-table td:nth-child(5) { white-space: nowrap; }
+    }
     /* Cópia usada só para gerar o PDF (html2pdf): sem position:fixed nem altura limitada, para não sair em branco */
     .pdf-render { display: block; position: static; background: #ffffff; color: #0f172a; padding: 0; box-sizing: border-box; width: 100%; font-family: Arial, Helvetica, sans-serif; }
     .pdf-render .print-header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 20px; }
@@ -486,6 +504,20 @@
   </div>
   <div id="printAreaContainer"></div>
 
+  <!-- PDF pronto: os botões de envio só aparecem depois que o arquivo foi gerado -->
+  <div id="modalPdfPronto" class="hidden fixed inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" style="z-index: 10000;">
+    <div class="glass-panel w-full max-w-sm p-5 rounded-2xl border border-slate-700 relative text-center">
+      <div class="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-500 mx-auto flex items-center justify-center text-2xl mb-3"><i class="fa-solid fa-file-pdf"></i></div>
+      <h3 class="text-base font-bold theme-text mb-1">PDF pronto</h3>
+      <p id="pdfProntoNome" class="text-xs theme-subtext mb-4 break-all"></p>
+      <div class="space-y-2.5">
+        <button type="button" id="btnPdfCompartilhar" onclick="enviarPdfGerado()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-md"><i class="fa-solid fa-share-nodes"></i> Enviar / Compartilhar</button>
+        <button type="button" onclick="baixarPdfGerado()" class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-md"><i class="fa-solid fa-download"></i> Salvar no celular</button>
+        <button type="button" onclick="fecharModalPdfPronto()" class="w-full py-2.5 bg-slate-800 text-white rounded-xl text-xs font-semibold">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- BOTÃO FLUTUANTE CELULAR (Oculto antes do login) -->
   <div class="hidden md:hidden fixed right-6 z-50 flex flex-col items-end gap-3" id="fabContainer" style="bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));">
     <div id="fabMenu" class="hidden flex flex-col gap-2 mb-1 transition-all duration-300">
@@ -706,10 +738,10 @@
       <div class="w-14 h-14 rounded-full bg-cyan-500/20 text-cyan-500 mx-auto flex items-center justify-center text-2xl mb-3"><i class="fa-solid fa-camera"></i></div>
       <h3 class="text-base font-bold theme-text mb-1">Digitalizar cupom</h3>
       <p class="text-xs theme-subtext mb-4">De onde vem a imagem?</p>
-      <div class="space-y-2.5">
-        <button type="button" onclick="escolherOrigemImagem('camera')" class="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-md"><i class="fa-solid fa-camera"></i> Abrir câmera</button>
-        <button type="button" onclick="escolherOrigemImagem('galeria')" class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-md"><i class="fa-solid fa-image"></i> Escolher imagem do celular</button>
-        <button type="button" onclick="fecharEscolhaOrigemImagem()" class="w-full py-2.5 bg-slate-800 text-white rounded-xl text-xs font-semibold">Cancelar</button>
+      <div class="flex items-stretch gap-2">
+        <button type="button" onclick="escolherOrigemImagem('camera')" class="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs rounded-xl transition flex flex-col items-center justify-center gap-1.5 shadow-md"><i class="fa-solid fa-camera text-lg"></i><span>Câmera</span></button>
+        <button type="button" onclick="escolherOrigemImagem('galeria')" class="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold text-xs rounded-xl transition flex flex-col items-center justify-center gap-1.5 shadow-md"><i class="fa-solid fa-image text-lg"></i><span>Imagem</span></button>
+        <button type="button" onclick="fecharEscolhaOrigemImagem()" class="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-xl transition flex flex-col items-center justify-center gap-1.5 shadow-md"><i class="fa-solid fa-xmark text-lg"></i><span>Cancelar</span></button>
       </div>
     </div>
   </div>
@@ -1560,7 +1592,7 @@
       }
     }
 
-    function exibirToast(mensagem, tipo = 'erro') {
+    function exibirToast(mensagem, tipo = 'erro', duracaoMs) {
       const container = document.getElementById('toastContainer');
       if (!container) return;
 
@@ -1579,7 +1611,7 @@
       container.appendChild(toast);
 
       setTimeout(() => { toast.classList.remove('translate-y-[-10px]', 'opacity-0'); }, 10);
-      setTimeout(() => { toast.classList.add('opacity-0', 'scale-95'); setTimeout(() => toast.remove(), 300); }, 4500);
+      setTimeout(() => { toast.classList.add('opacity-0', 'scale-95'); setTimeout(() => toast.remove(), 300); }, duracaoMs || 4500);
     }
 
     function formatarDataBR(dataISO) {
@@ -2035,6 +2067,7 @@
           <thead><tr><th>Tipo</th><th>Descrição</th><th>Categoria</th><th>Data</th><th style="text-align: right;">Valor</th><th>Pagto</th></tr></thead>
           <tbody>${tabelaRows || '<tr><td colspan="6" style="text-align:center;">Nenhum registro.</td></tr>'}</tbody>
         </table>
+        <div class="print-total-lanc" style="text-align: left; margin-top: 12px; padding-top: 8px; border-top: 1px solid #cbd5e1; font-size: 12px; color: #0f172a;">Total de lançamentos: <strong>${transacoes.length}</strong></div>
       `;
 
       // Mostra o relatório na tela (no APK/WebView a impressão direta não funciona)
@@ -2044,6 +2077,8 @@
     }
 
     function fecharRelatorio() {
+      fecharModalPdfPronto();
+      pdfGerado = null;
       document.getElementById('printAreaContainer').classList.remove('visualizando');
       document.getElementById('barraRelatorio').classList.add('hidden');
     }
@@ -2064,8 +2099,12 @@
       });
     }
 
+    // O PDF é gerado primeiro; só depois de pronto aparece a janela com os botões de enviar/salvar.
+    let pdfGerado = null;   // { blob, arquivo, nome }
+
     async function compartilharPdfRelatorio() {
       const btn = document.getElementById('btnPdfRelatorio');
+      if (btn.disabled) return;
       const rotulo = btn.innerHTML;
       btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Gerando...</span>';
       try {
@@ -2082,22 +2121,44 @@
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
           pagebreak: { mode: ['css', 'legacy'], avoid: 'tr' }
         }).outputPdf('blob');
-        const arquivo = new File([blob], nome, { type: 'application/pdf' });
-        if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
-          await navigator.share({ files: [arquivo], title: 'Relatório PliPag' });
-        } else {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = nome;
-          document.body.appendChild(a); a.click(); document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(url), 60000);
-          exibirToast("PDF gerado. Verifique os downloads.", "sucesso");
-        }
+        pdfGerado = { blob: blob, arquivo: new File([blob], nome, { type: 'application/pdf' }), nome: nome };
+        mostrarModalPdfPronto();
       } catch (e) {
-        if (!(e && e.name === 'AbortError')) exibirToast("Não foi possível gerar o PDF.", "erro");
+        exibirToast("Não foi possível gerar o PDF.", "erro");
       } finally {
         btn.disabled = false; btn.innerHTML = rotulo;
       }
+    }
+
+    function mostrarModalPdfPronto() {
+      if (!pdfGerado) return;
+      document.getElementById('pdfProntoNome').textContent = pdfGerado.nome;
+      const podeCompartilhar = !!(navigator.canShare && navigator.share && navigator.canShare({ files: [pdfGerado.arquivo] }));
+      document.getElementById('btnPdfCompartilhar').classList.toggle('hidden', !podeCompartilhar);
+      document.getElementById('modalPdfPronto').classList.remove('hidden');
+    }
+
+    function fecharModalPdfPronto() {
+      document.getElementById('modalPdfPronto').classList.add('hidden');
+    }
+
+    async function enviarPdfGerado() {
+      if (!pdfGerado) return;
+      try {
+        await navigator.share({ files: [pdfGerado.arquivo], title: 'Relatório PliPag' });
+      } catch (e) {
+        if (!(e && e.name === 'AbortError')) exibirToast('Não foi possível compartilhar. Use "Salvar no celular".', 'erro');
+      }
+    }
+
+    function baixarPdfGerado() {
+      if (!pdfGerado) return;
+      const url = URL.createObjectURL(pdfGerado.blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = pdfGerado.nome;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      exibirToast("PDF salvo. Verifique os downloads.", "sucesso");
     }
 
     function normalizarFormaPagto(f) {
@@ -2611,6 +2672,7 @@
       }
     }
 
+    const TEMPO_MENSAGEM_SALVAR_MS = 10000;   // quanto tempo a mensagem de gravação do lançamento fica na tela
     function salvarLancamento(event, outroLancamento) {
       if (event) event.preventDefault();
       const porVoz = formularioPorVoz;
@@ -2646,13 +2708,13 @@
             btnSalvar.innerText = "Salvar";
             fecharModalNovaTransacao();
             carregarDados();
-            exibirToast("Lançamento salvo com sucesso!", "sucesso");
+            exibirToast("Lançamento salvo com sucesso!", "sucesso", TEMPO_MENSAGEM_SALVAR_MS);
             if (outroLancamento === 'sim') { if (porVoz) abrirModalVoz(); else abrirModalNovaTransacao(); }
           })
           .withFailureHandler(function(err) {
             btnSalvar.disabled = false;
             btnSalvar.innerText = "Salvar";
-            exibirToast("Erro ao salvar lançamento.", "erro");
+            exibirToast("Erro ao salvar lançamento.", "erro", TEMPO_MENSAGEM_SALVAR_MS);
           });
         if (dados.id === null && dados.parcelas > 1) runner.importTransactions(gerarParcelas(dados));
         else runner.saveTransaction(dados);
@@ -2673,7 +2735,7 @@
         fecharModalNovaTransacao();
         atualizarOpcoesCategorias(listaTransacoesGlobal);
         renderizarDados(obterTransacoesFiltradas());
-        exibirToast("Lançamento salvo!", "sucesso");
+        exibirToast("Lançamento salvo!", "sucesso", TEMPO_MENSAGEM_SALVAR_MS);
         if (outroLancamento === 'sim') { if (porVoz) abrirModalVoz(); else abrirModalNovaTransacao(); }
       }
     }
@@ -2975,6 +3037,7 @@
       // Tocar de novo enquanto escuta = encerrar a fala agora
       if (recVozInstancia) {
         const atual = recVozInstancia;
+        atual._encerrando = true;   // o usuário concluiu: não reiniciar a escuta
         try { atual.stop(); } catch (e) {}
         if (atual._finalizar) setTimeout(function() { atual._finalizar('parado'); }, 1500);
         return;
@@ -3007,10 +3070,34 @@
       let encerrado = false;
       let timerInicio = null, timerTotal = null;
       const LIMITE_ESCUTA_MS = 45000;      // tempo máximo de escuta
+      // O navegador (Chrome do Android) encerra a escuta na primeira pausa da fala. Para não abrir o
+      // lançamento com dados incompletos, o app continua ouvindo e só conclui depois de um silêncio de verdade.
+      const SILENCIO_COM_VALOR_MS = 4500;  // pausa depois da última fala, quando o valor já foi dito
+      const SILENCIO_SEM_VALOR_MS = 8000;  // pausa maior enquanto ainda falta o valor
       const inicioEscuta = Date.now();
+      let ultimaFala = 0;
+      let silencioCumprido = false;
+      let timerSilencio = null;
       const temTexto = function() { return finais.length > 0 || textoParcial.trim() !== ''; };
-      // Se o navegador encerrar sozinho por silêncio antes de o usuário falar, volta a escutar
-      const podeReescutar = function() { return !encerrado && !rec._cancelado && !temTexto() && (Date.now() - inicioEscuta) < LIMITE_ESCUTA_MS - 5000; };
+      const textoAtual = function() { return (finais.map(function(f) { return f[0]; }).join(' ') + ' ' + textoParcial).trim(); };
+      const silencioNecessario = function() { return extrairValorDaFrase(textoAtual()).valor > 0 ? SILENCIO_COM_VALOR_MS : SILENCIO_SEM_VALOR_MS; };
+      // Se o navegador encerrar sozinho (silêncio ou pausa na fala), volta a escutar enquanto não houver silêncio suficiente
+      const podeReescutar = function() {
+        if (encerrado || rec._cancelado || rec._encerrando || silencioCumprido) return false;
+        if ((Date.now() - inicioEscuta) >= LIMITE_ESCUTA_MS - 5000) return false;
+        return !temTexto() || (Date.now() - ultimaFala) < silencioNecessario();
+      };
+      // A cada fala recebida, reinicia a contagem do silêncio; passado o tempo, conclui o lançamento
+      const agendarSilencio = function() {
+        clearTimeout(timerSilencio);
+        if (!temTexto()) return;
+        timerSilencio = setTimeout(function() {
+          if (encerrado || rec._cancelado) return;
+          silencioCumprido = true; rec._encerrando = true;
+          try { rec.stop(); } catch (e) {}
+          setTimeout(function() { finalizar('silencio'); }, 1500);
+        }, silencioNecessario());
+      };
 
       let rec;
       try {
@@ -3035,7 +3122,7 @@
       function finalizar(motivo) {
         if (encerrado) return;
         encerrado = true;
-        clearTimeout(timerInicio); clearTimeout(timerTotal);
+        clearTimeout(timerInicio); clearTimeout(timerTotal); clearTimeout(timerSilencio);
         if (recVozInstancia === rec) recVozInstancia = null;
         if (rec._cancelado) return;
         try { rec.abort(); } catch (e) {}
@@ -3085,6 +3172,7 @@
           }
         }
         textoParcial = parcial;
+        ultimaFala = Date.now(); silencioCumprido = false; agendarSilencio();
         const mostrar = (finais.map(function(f) { return f[0]; }).join(' ') + ' ' + parcial).trim();
         if (mostrar) feedback.innerText = '"' + mostrar + '"';
       };
@@ -3098,6 +3186,8 @@
       };
 
       rec.onend = function() {
+        // fala que o navegador não chegou a confirmar: guarda para não perder
+        if (textoParcial.trim()) { finais.push([textoParcial.trim()]); textoParcial = ''; }
         if (!erroOcorrido && iniciou && podeReescutar()) {
           try { rec.start(); return; } catch (e) {}
         }
@@ -3107,7 +3197,7 @@
       // Se o navegador não começar a ouvir em 4s (ex.: Brave), avisa em vez de ficar travado
       timerInicio = setTimeout(function() { if (!iniciou) finalizar('sem-inicio'); }, 6000);
       // Limite máximo de escuta
-      timerTotal = setTimeout(function() { try { rec.stop(); } catch (e) {} setTimeout(function() { finalizar('tempo'); }, 1500); }, LIMITE_ESCUTA_MS);
+      timerTotal = setTimeout(function() { rec._encerrando = true; try { rec.stop(); } catch (e) {} setTimeout(function() { finalizar('tempo'); }, 1500); }, LIMITE_ESCUTA_MS);
 
       try {
         rec.start();
@@ -3519,54 +3609,18 @@
       return final;
     }
 
+    // Leitura única e rápida: uma passada de OCR, sem refazer nem reler o cupom em outras resoluções.
+    // Se algo não for reconhecido, o formulário abre para o usuário completar digitando.
     async function processarImagemCupom(file, onStatus) {
       if (typeof Tesseract === 'undefined') throw new Error('OCR indisponível');
       const img = await carregarImagemArquivo(file);
       onStatus('Preparando imagem do cupom...');
-      let canvas = prepararCanvasOCR(img, false);
+      const canvas = prepararCanvasOCR(img, false, 1600);
 
-      let worker = await criarWorkerOCR(onStatus);
+      const worker = await criarWorkerOCR(onStatus);
       try {
-        let texto = await lerTextoComWorker(worker, canvas, '4');
-
-        // Leitura quase vazia = leitor com problema: recria o leitor e tenta de novo uma vez
-        if (textoOCRPobre(texto)) {
-          onStatus('Refazendo a leitura do cupom...');
-          try { await worker.terminate(); } catch (e) {}
-          worker = await criarWorkerOCR(onStatus);
-          texto = await lerTextoComWorker(worker, canvas, '4');
-        }
-
-        const leituras = [{ texto: texto, r: analisarTextoCupom(texto) }];
-        const confirmado = function() { return combinarLeiturasCupom(leituras).confiancaValor >= 2; };
-
-        // Se o TOTAL não foi confirmado (rótulo + valor pago, soma dos itens ou valor repetido
-        // em duas leituras), lê de novo a foto em resolução maior (letras pequenas de cupom
-        // térmico se perdem na redução) e, se ainda precisar, em outro modo de página.
-        if (!confirmado()) {
-          onStatus('Conferindo o total do cupom...');
-          try {
-            canvas.width = 1; canvas.height = 1;   // libera memória antes do canvas maior
-            canvas = prepararCanvasOCR(img, false, 3000);
-            const texto2 = await lerTextoComWorker(worker, canvas, '4');
-            leituras.push({ texto: texto2, r: analisarTextoCupom(texto2) });
-
-            // cupom estreito fotografado com mesa/outros papéis ao redor: lê só a faixa central
-            if (!confirmado()) {
-              onStatus('Lendo a faixa central do cupom...');
-              canvas.width = 1; canvas.height = 1;
-              canvas = prepararCanvasOCR(img, false, 2800, 0.7);
-              const texto3 = await lerTextoComWorker(worker, canvas, '4');
-              leituras.push({ texto: texto3, r: analisarTextoCupom(texto3) });
-
-              if (!confirmado()) {
-                const texto4 = await lerTextoComWorker(worker, canvas, '6');
-                leituras.push({ texto: texto4, r: analisarTextoCupom(texto4) });
-              }
-            }
-          } catch (e) { /* mantém as leituras já feitas */ }
-        }
-        return combinarLeiturasCupom(leituras);
+        const texto = await lerTextoComWorker(worker, canvas, '4');
+        return combinarLeiturasCupom([{ texto: texto, r: analisarTextoCupom(texto) }]);
       } finally {
         try { await worker.terminate(); } catch (e) {}
       }
