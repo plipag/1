@@ -3549,10 +3549,40 @@
         const nome = limparNome(linhas[i].split(/\bC\s?N\s?P\s?J/i)[0]);
         if (nomeValido(nome)) { res.loja = nome; break; }
       }
-      // primeira linha ilegível: usa o nome que costuma vir logo depois do número do CNPJ
-      if (!res.loja && idxCnpj >= 0 && /^C\s?N\s?P/.test(up(linhas[idxCnpj]))) {
-        const mn = /\d[\s\-–:.\/]*([A-Za-zÀ-ÿ&].*)$/.exec(linhas[idxCnpj]);
-        if (mn) { const nome = limparNome(mn[1]); if (nomeValido(nome)) res.loja = nome; }
+      // primeira linha ilegível: procura o nome (razão social) dentro do cabeçalho do cupom
+      if (!res.loja) {
+        let fimCab = linhas.length;
+        for (let i = 0; i < linhas.length; i++) {
+          if (/DOCUMENTO|DANFE|NFC|CUPOM\s*FISCAL|^#|\bCOD\b|DESCRI/.test(up(linhas[i]))) { fimCab = i; break; }
+        }
+        fimCab = Math.min(fimCab, 12);
+        const ehEndereco = /^(R\.?\s+[A-Z]|RUA\b|AV\b|AVENIDA|RODOVIA|FONE|TEL\b|CEP\b|I\.?\s?E\b|INSC|CPF|\d)/;
+        const aceita = function(nome) { return nomeValido(nome) && !ehEndereco.test(up(nome)) && !/\d{4,}/.test(nome); };
+        const temCnpj = function(l) { return /C\s?N\s?P/.test(up(l)); };
+        // a) nome logo depois do número do CNPJ, na mesma linha
+        for (let i = 0; i < fimCab && !res.loja; i++) {
+          if (!temCnpj(linhas[i])) continue;
+          const mn = /\d[\s\-–:.\/]*([A-Za-zÀ-ÿ&].*)$/.exec(linhas[i]);
+          if (mn) { const nome = limparNome(mn[1]); if (aceita(nome)) res.loja = nome; }
+        }
+        // b) CNPJ sozinho na linha: o nome veio na linha seguinte
+        for (let i = 0; i + 1 < fimCab && !res.loja; i++) {
+          if (!temCnpj(linhas[i])) continue;
+          const nome = limparNome(linhas[i + 1]);
+          if (aceita(nome) && !cabecalhoCupom.test(up(linhas[i + 1]))) res.loja = nome;
+        }
+        // c) linha com marca de razão social (LTDA, S/A, EIRELI, ME, EPP, MEI)
+        for (let i = 0; i < fimCab && !res.loja; i++) {
+          if (!/\b(LTDA|S\s?\/?\s?A|EIRELI|EPP|MEI|ME)\b/.test(up(linhas[i]))) continue;
+          const nome = limparNome(linhas[i].split(/\bC\s?N\s?P\s?J/i)[0]);
+          if (aceita(nome)) res.loja = nome;
+        }
+        // d) primeira linha do cabeçalho que pareça um nome (e não endereço, telefone ou CNPJ)
+        for (let i = 0; i < fimCab && !res.loja; i++) {
+          if (temCnpj(linhas[i]) || cabecalhoCupom.test(up(linhas[i]))) continue;
+          const nome = limparNome(linhas[i]);
+          if (aceita(nome)) res.loja = nome;
+        }
       }
 
       // ---------- CATEGORIA ----------
@@ -3609,6 +3639,17 @@
       return final;
     }
 
+    // Recorta só o topo do cupom (onde ficam o nome do estabelecimento, o CNPJ e o endereço)
+    function recortarTopoCupom(img, fracAltura) {
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      const ch = Math.max(1, Math.round(h * fracAltura));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = ch;
+      c.getContext('2d').drawImage(img, 0, 0, w, ch, 0, 0, w, ch);
+      return c;
+    }
+
     // Leitura única e rápida: uma passada de OCR, sem refazer nem reler o cupom em outras resoluções.
     // Se algo não for reconhecido, o formulário abre para o usuário completar digitando.
     async function processarImagemCupom(file, onStatus) {
@@ -3620,7 +3661,22 @@
       const worker = await criarWorkerOCR(onStatus);
       try {
         const texto = await lerTextoComWorker(worker, canvas, '4');
-        return combinarLeiturasCupom([{ texto: texto, r: analisarTextoCupom(texto) }]);
+        const leituras = [{ texto: texto, r: analisarTextoCupom(texto) }];
+
+        // Se o nome do estabelecimento não apareceu, lê só o topo do cupom (cerca de 30% da foto, bem mais
+        // rápido que reler tudo): o título grande e o CNPJ ficam ali e costumam sair melhor numa leitura própria.
+        if (!leituras[0].r.loja) {
+          try {
+            onStatus('Lendo o nome do estabelecimento...');
+            canvas.width = 1; canvas.height = 1;   // libera memória
+            const topo = prepararCanvasOCR(recortarTopoCupom(img, 0.3), false, 700);
+            const textoTopo = await lerTextoComWorker(worker, topo, '6');
+            const rTopo = analisarTextoCupom(textoTopo);
+            rTopo.valor = 0; rTopo.confiancaValor = 0; rTopo.valorIncerto = false;   // o topo só serve para o nome
+            leituras.push({ texto: textoTopo, r: rTopo });
+          } catch (e) { /* mantém a leitura principal */ }
+        }
+        return combinarLeiturasCupom(leituras);
       } finally {
         try { await worker.terminate(); } catch (e) {}
       }
