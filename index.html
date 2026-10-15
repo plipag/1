@@ -632,7 +632,11 @@
           </div>
           <div>
             <label class="block text-xs font-semibold theme-subtext mb-1">Data</label>
-            <input type="date" id="inputData" required class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm">
+            <!-- O campo real (data nativa, valor AAAA-MM-DD) fica invisível por cima; o que se vê é a data no formato DD/MM/AAAA -->
+            <div class="relative" style="position: relative;">
+              <div id="dataExibida" class="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-sm text-left select-none" style="pointer-events: none; min-height: 2.5rem;">dd/mm/aaaa</div>
+              <input type="date" id="inputData" required aria-label="Data" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; min-width: 0; margin: 0; padding: 0; border: 0; box-sizing: border-box; -webkit-appearance: none; appearance: none;">
+            </div>
           </div>
         </div>
         <div>
@@ -873,6 +877,7 @@
     let bioPlataformaOk = null;
     let bioAtivaNoAparelho = false;
     let bioEntrando = false;
+    let bioAutoPendente = true;   // tenta o Face ID/biometria sozinho ao abrir o app (uma vez por abertura)
     let loginRapidoDispensado = false;
     let perfilRapidoSincronizado = false;
     const PERFIL_RAPIDO_KEY = 'plipag_perfil_rapido';
@@ -970,6 +975,12 @@
           mostrarLoginRapido(false);
           bloco.classList.remove('hidden');
         }
+        // Pede o Face ID/biometria automaticamente, sem precisar tocar no botão. Se o aparelho exigir um toque
+        // (alguns iPhones) ou o usuário cancelar, nada é mostrado e o botão continua disponível.
+        if (bioAutoPendente && !loginRapidoDispensado && telaLoginVisivel() && document.visibilityState === 'visible') {
+          bioAutoPendente = false;
+          entrarComBiometria(true);
+        }
       } else {
         mostrarLoginRapido(false);
         if (!bioIdLocal()) bloco.classList.add('hidden');
@@ -1063,7 +1074,7 @@
       }
     }
 
-    async function entrarComBiometria() {
+    async function entrarComBiometria(automatico) {
       if (bioEntrando) return;
       bioEntrando = true;
       const id = bioIdLocal();   // pode estar vazio (atalho da tela inicial usa armazenamento separado): o aparelho encontra a credencial
@@ -1077,7 +1088,7 @@
         bioDesafioLogin = null;
         if (!desafio) {
           bioBotaoLogin(false);
-          if (bioIdLocal()) exibirToast('Não foi possível iniciar a biometria. Tente novamente ou use a senha.', 'erro');
+          if (bioIdLocal() && !automatico) exibirToast('Não foi possível iniciar a biometria. Tente novamente ou use a senha.', 'erro');
           return;
         }
       }
@@ -1098,7 +1109,9 @@
         });
       } catch (e) {
         bioBotaoLogin(false);
-        if (e && e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
+        if (automatico) {
+          // tentativa automática: sem mensagens (o usuário pode tocar no botão se quiser)
+        } else if (e && e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
           exibirToast('Biometria indisponível neste aparelho. Use a senha.', 'erro');
         } else if (Date.now() - inicioPedido < 2000) {
           // recusa imediata = o aparelho não achou a biometria (cancelar manualmente leva mais tempo)
@@ -1286,6 +1299,86 @@
         exibirToast('Não foi possível remover agora. Tente novamente.', 'erro');
       }
       atualizarSecaoBiometriaPerfil();
+    }
+
+    // ----- Data do lançamento no formato DD/MM/AAAA -----
+    function formatarDataBR(iso) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+      return m ? (m[3] + '/' + m[2] + '/' + m[1]) : '';
+    }
+
+    function atualizarDataExibida() {
+      const campo = document.getElementById('inputData');
+      const exibida = document.getElementById('dataExibida');
+      if (!campo || !exibida) return;
+      const texto = formatarDataBR(campo.value);
+      exibida.textContent = texto || 'dd/mm/aaaa';
+      exibida.style.opacity = texto ? '1' : '0.5';
+    }
+
+    function configurarCampoDataBR() {
+      const campo = document.getElementById('inputData');
+      if (!campo) return;
+      // o app preenche o campo por código (escanear, voz, editar): acompanha essas mudanças também
+      const original = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+      Object.defineProperty(campo, 'value', {
+        configurable: true,
+        get: function() { return original.get.call(this); },
+        set: function(v) { original.set.call(this, v); atualizarDataExibida(); }
+      });
+      campo.addEventListener('input', atualizarDataExibida);
+      campo.addEventListener('change', atualizarDataExibida);
+      if (campo.form) campo.form.addEventListener('reset', function() { setTimeout(atualizarDataExibida, 0); });
+      atualizarDataExibida();
+    }
+
+    // ----- Volta para a tela de login depois de um tempo sem usar o app -----
+    const TEMPO_INATIVIDADE_MS = 5 * 60 * 1000;   // 5 minutos sem tocar na tela
+    let ultimaAtividade = Date.now();
+    let encerrandoPorInatividade = false;
+
+    function telaLoginVisivel() {
+      const t = document.getElementById('telaLogin');
+      return !!t && !t.classList.contains('hidden');
+    }
+
+    function verificarInatividade(origem) {
+      if (telaLoginVisivel()) { ultimaAtividade = Date.now(); return; }   // só conta com o app aberto e logado
+      if (Date.now() - ultimaAtividade < TEMPO_INATIVIDADE_MS) return;
+      encerrarPorInatividade(origem);
+    }
+
+    function encerrarPorInatividade(origem) {
+      if (encerrandoPorInatividade) return;
+      encerrandoPorInatividade = true;
+      try { sessionStorage.setItem('plipag_inativo', origem === 'retorno' ? 'retorno' : '1'); } catch (e) {}
+      // encerra a sessão no servidor e recarrega o app, que volta limpo para a tela de login
+      const recarregar = function() { location.reload(); };
+      if (bioTemServidor()) {
+        const seguranca = setTimeout(recarregar, 3000);
+        const fim = function() { clearTimeout(seguranca); recarregar(); };
+        google.script.run.withSuccessHandler(fim).withFailureHandler(fim).logoutUsuario();
+      } else {
+        recarregar();
+      }
+    }
+
+    function iniciarControleInatividade() {
+      const marcar = function() { ultimaAtividade = Date.now(); };
+      ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll', 'mousemove'].forEach(function(ev) {
+        document.addEventListener(ev, marcar, { passive: true, capture: true });
+      });
+      setInterval(function() { verificarInatividade('tempo'); }, 15000);
+      // o iPhone "congela" o app em segundo plano: ao voltar, confere o tempo que passou
+      document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') verificarInatividade('retorno');
+      });
+      let aviso = '';
+      try { aviso = sessionStorage.getItem('plipag_inativo') || ''; sessionStorage.removeItem('plipag_inativo'); } catch (e) {}
+      if (aviso) {
+        exibirToast('Sessão encerrada por inatividade. Entre novamente.', 'sucesso');
+        if (aviso !== 'retorno') bioAutoPendente = false;   // se foi com o app aberto na tela, não abre o Face ID sozinho
+      }
     }
 
     function toggleMostrarSenha() {
@@ -3915,11 +4008,13 @@
     document.addEventListener('DOMContentLoaded', () => {
       inicializarTema();
       configurarCampoVoz();
+      configurarCampoDataBR();
+      iniciarControleInatividade();
       prepararBiometriaLogin();
     });
   </script>
 
-  <script>
+<script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
       .then(() => console.log('Service Worker Registrado com Sucesso!'))
