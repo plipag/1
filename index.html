@@ -1104,6 +1104,7 @@
             challenge: bioB64uParaBuf(desafio.challenge),
             allowCredentials: idsPermitidos.map(function(i) { return { type: 'public-key', id: bioB64uParaBuf(i) }; }),
             userVerification: 'required',
+            hints: ['client-device'],
             timeout: 60000
           }
         });
@@ -1113,9 +1114,9 @@
           // tentativa automática: sem mensagens (o usuário pode tocar no botão se quiser)
         } else if (e && e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
           exibirToast('Biometria indisponível neste aparelho. Use a senha.', 'erro');
-        } else if (Date.now() - inicioPedido < 2000) {
+        } else if (!id || Date.now() - inicioPedido < 2000) {
           // recusa imediata = o aparelho não achou a biometria (cancelar manualmente leva mais tempo)
-          exibirToast('Biometria não encontrada neste aparelho. Entre com a senha e, em Perfil, toque em Ativar.', 'erro');
+          exibirToast('Biometria não encontrada ou cancelada neste aparelho. Se ainda não ativou aqui, entre com a senha e, em Perfil, toque em Ativar.', 'erro');
         }
         buscarDesafioBiometria();
         return;
@@ -1243,14 +1244,17 @@
             user: { id: bioB64uParaBuf(d.userId), name: d.usuario || 'plipag', displayName: d.nome || 'PliPag' },
             challenge: bioB64uParaBuf(d.challenge),
             pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-            authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'required', requireResidentKey: true, userVerification: 'required' },
+            authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'preferred', userVerification: 'required' },
+            hints: ['client-device'],
             attestation: 'none',
             timeout: 60000
           }
         });
       } catch (e) {
         btn.disabled = false;
-        if (e && e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
+        if (e && (e.name === 'NotAllowedError' || e.name === 'AbortError')) {
+          exibirToast('A ativação foi cancelada ou recusada pelo aparelho (' + e.name + '). Se o computador pediu a biometria ou o PIN, confirme e tente de novo.', 'erro');
+        } else {
           exibirToast('Este aparelho não permitiu ativar a biometria (' + ((e && e.name) || 'erro') + ').', 'erro');
         }
         atualizarSecaoBiometriaPerfil();
@@ -4021,6 +4025,5 @@
       .catch(err => console.log('Erro ao registrar Service Worker:', err));
   }
 </script>
-
 </body>
 </html>
