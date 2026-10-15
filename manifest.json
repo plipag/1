@@ -3,12 +3,12 @@
   "name": "Gestão Financeira",
   "icons": [
     {
-      "src": "plipag.png",
+      "src": "plipag-192x192.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "icone-512.png",
+      "src": "plipag-512x512.png",
       "type": "image/png",
       "sizes": "512x512"
     }
