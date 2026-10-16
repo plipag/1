@@ -3004,8 +3004,28 @@
     }
 
     // ===================== INTERPRETAÇÃO DO COMANDO DE VOZ =====================
+    // O ditado entrega o valor de formas diferentes ("39,77", "39 77", "39 vírgula 77", vírgula "estranha", ponto final).
+    // Padroniza a frase antes de interpretar, para o valor não ser dividido entre descrição e valor.
+    function normalizarFraseVoz(texto) {
+      let t = String(texto || '');
+      try { t = t.normalize('NFKC'); } catch (e) {}
+      t = t.replace(/[\u200B-\u200D\uFEFF]/g, '')
+           .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+           .replace(/[\u201A\u066B\u060C]/g, ',')
+           .replace(/\s+/g, ' ').trim();
+      t = t.replace(/[.!?…]+$/, '').trim();                                          // ponto final do ditado
+      t = t.replace(/(\d)\s*,\s*(\d{2})(?!\d)/g, '$1,$2');                            // "39 , 77" / "39, 77"
+      t = t.replace(/(\d)\s+v[ií]rgula\s+(\d{1,2})(?!\d)/gi, function(m, a, b) { return a + ',' + (b.length === 1 ? b + '0' : b); });
+      t = t.replace(/r\$\s*(\d{1,4})\s+(?:e\s+)?(\d{2})(?![\d,.])/i, 'R$ $1,$2');   // "R$ 39 77"
+      if (!/r\$|reais|real\b|centavo|\d,\d/i.test(t)) {
+        // "39 77" ou "39 e 77" (reais e centavos sem separador), quando não há outro indicador de moeda
+        t = t.replace(/(^|[^\d,.])(\d{1,4})\s+(?:e\s+)?(\d{2})(?![\d,.])/, '$1$2,$3');
+      }
+      return t;
+    }
+
     function interpretarComandoVoz(texto) {
-      const original = String(texto || '').trim();
+      const original = normalizarFraseVoz(texto);
       const normFull = ' ' + semAcentos(original).toLowerCase() + ' ';
 
       // Tipo
@@ -3495,7 +3515,7 @@
     function linhaIlegivelOCR(txt, confianca) {
       const t = String(txt || '').trim();
       if (!t) return false;
-      if (/\d+[.,]\d{2}\b/.test(t) && /(TOTAL|VALOR|PAGAR|PAGO|PIX|D[EÉ]BITO|CR[EÉ]DITO|DINHEIRO|TROCO)/i.test(t)) return false;
+      if (/\d+[.,]\d{2}\b/.test(t) && /(TOTAL|[VJ]ALOR|PAGAR|PAGO|PIX|D[EÉ]BITO|CR[EÉ]DITO|DINHEIRO|TROCO)/i.test(t)) return false;
       const semEsp = t.replace(/\s/g, '');
       const letras = (t.match(/[A-Za-zÀ-ÿ]/g) || []).length;
       const digitos = (t.match(/\d/g) || []).length;
@@ -3573,7 +3593,7 @@
     function analisarTextoCupom(textoBruto) {
       const linhas = String(textoBruto || '').split(/\r?\n/).map(function(l) { return l.replace(/\s+/g, ' ').trim(); }).filter(function(l) { return l.length > 0; });
       const up = function(l) { return semAcentos(l).toUpperCase(); };
-      const res = { loja: '', valor: 0, valorIncerto: false, confiancaValor: 0, data: '', formapagto: '', categoria: '' };
+      const res = { loja: '', valor: 0, valorIncerto: false, confiancaValor: 0, data: '', formapagto: '', categoria: '', cnpj: '' };
 
       // ---------- VALOR ----------
       function dinheiroDe(linha) {
@@ -3606,8 +3626,8 @@
         if (excluir.test(n)) return;
 
         let forca = 0, ehTef = false;
-        if (/VALOR\s*A\s*PAGAR|TOTAL\s*A\s*PAGAR|\bA\s*PAGAR\b/.test(n)) forca = 4;
-        else if (/VALOR\s*TOTAL|TOTAL\s*(GERAL|DA\s*COMPRA|DO\s*CUPOM|DO\s*PEDIDO|R\s?[S$5])/.test(n)) forca = 3;
+        if (/[VJ]ALOR\s*A\s*PAGAR|TOTAL\s*A\s*PAGAR|\bA\s*PAGAR\b/.test(n)) forca = 4;
+        else if (/[VJ]ALOR\s*TOTAL|TOTAL\s*(GERAL|DA\s*COMPRA|DO\s*CUPOM|DO\s*PEDIDO|R\s?[S$5])/.test(n)) forca = 3;
         // em alguns cupons (ex.: Barros Comércio) o total vem na linha "TEF" (pagamento no cartão)
         else if (/\bT[EF3][EF]\b/.test(n)) { forca = 3; ehTef = true; }
         else if (/(^|[^A-Z])R\s?[S$5]\s*\d/.test(n)) forca = 2;
@@ -3743,7 +3763,7 @@
         fimCab = Math.min(fimCab, 12);
         const ehEndereco = /^(R\.?\s+[A-Z]|RUA\b|AV\b|AVENIDA|RODOVIA|FONE|TEL\b|CEP\b|I\.?\s?E\b|INSC|CPF|\d)/;
         const aceita = function(nome) { return nomeValido(nome) && !ehEndereco.test(up(nome)) && !/\d{4,}/.test(nome); };
-        const temCnpj = function(l) { return /C\s?N\s?P/.test(up(l)); };
+        const temCnpj = function(l) { return /C\s?N\s?P/.test(up(l)) || /\d{2}\s?[.,]?\s?\d{3}\s?[.,]?\s?\d{3}\s?[\/\\|]?\s?\d{4}\s?[-–]?\s?\d{2}/.test(l); };
         // a) nome logo depois do número do CNPJ, na mesma linha
         for (let i = 0; i < fimCab && !res.loja; i++) {
           if (!temCnpj(linhas[i])) continue;
@@ -3770,7 +3790,10 @@
         }
       }
 
-      // ---------- CATEGORIA ----------
+      // ---------- CNPJ (só vale se os dígitos verificadores conferirem) ----------
+      res.cnpj = extrairCnpjValidoDoTexto(linhas, corpoCupom, up);
+
+      // ---------- CATEGORIA (só pelo estabelecimento; os itens do cupom são ignorados) ----------
       res.categoria = categoriaPorPadraoAprendido(res.loja) || sugerirCategoriaPorTexto(res.loja);
 
       return res;
@@ -3809,7 +3832,7 @@
         final.confiancaValor = melhorConf;
         final.valorIncerto = melhorConf < 2;
       }
-      ['loja', 'data', 'formapagto'].forEach(function(campo) {
+      ['loja', 'data', 'formapagto', 'cnpj'].forEach(function(campo) {
         if (!final[campo]) {
           for (let i = 1; i < resultados.length; i++) {
             if (resultados[i][campo]) { final[campo] = resultados[i][campo]; break; }
@@ -3868,9 +3891,226 @@
       return c;
     }
 
+    // ===================== QR CODE / CNPJ DO CUPOM =====================
+    // O QR Code da NFC-e leva à página da Secretaria da Fazenda com os dados oficiais da nota (razão social,
+    // total, forma de pagamento). A chave de acesso (44 dígitos, impressa e dentro do QR) traz o CNPJ do
+    // estabelecimento, com dígitos verificadores que provam se a leitura está certa. Os itens são ignorados.
+    const USAR_CONSULTA_FAZENDA = true;   // consulta a página da Fazenda pelo QR Code (feita pelo servidor)
+    const USAR_CONSULTA_CNPJ = true;      // busca a razão social pelo CNPJ (BrasilAPI), quando o nome não foi achado
+
+    function cnpjValido(c) {
+      c = String(c || '').replace(/\D/g, '');
+      if (c.length !== 14 || /^(\d)\1+$/.test(c)) return false;
+      const calc = function(base, pesos) {
+        let soma = 0;
+        for (let i = 0; i < pesos.length; i++) soma += parseInt(base.charAt(i), 10) * pesos[i];
+        const r = soma % 11;
+        return r < 2 ? 0 : 11 - r;
+      };
+      return calc(c, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]) === parseInt(c.charAt(12), 10) &&
+             calc(c, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]) === parseInt(c.charAt(13), 10);
+    }
+
+    function chaveNfceValida(chave) {
+      chave = String(chave || '').replace(/\D/g, '');
+      if (chave.length !== 44) return false;
+      let soma = 0, peso = 2;
+      for (let i = 42; i >= 0; i--) { soma += parseInt(chave.charAt(i), 10) * peso; peso = (peso === 9) ? 2 : peso + 1; }
+      const r = soma % 11;
+      return ((r === 0 || r === 1) ? 0 : 11 - r) === parseInt(chave.charAt(43), 10);
+    }
+
+    // Procura, no texto lido, uma chave de acesso válida (44 dígitos) ou um CNPJ válido; devolve o CNPJ
+    function extrairCnpjValidoDoTexto(linhas, corpoCupom, up) {
+      linhas = Array.isArray(linhas) ? linhas : String(linhas || '').split(/\r?\n/);
+      // linha quase toda de números (chave de acesso): letras que o OCR confunde com dígitos viram dígitos
+      const soDigitos = function(l) {
+        let t = String(l);
+        const semEsp = t.replace(/\s/g, '');
+        const dig = (semEsp.match(/\d/g) || []).length;
+        if (semEsp.length >= 14 && dig / semEsp.length >= 0.6) t = t.replace(/[OoQD]/g, '0').replace(/[Il|]/g, '1').replace(/S/g, '5').replace(/B/g, '8').replace(/Z/g, '2');
+        return t.replace(/\D/g, '');
+      };
+      for (let i = 0; i < linhas.length; i++) {
+        const candidatos = [soDigitos(linhas[i])];
+        if (i + 1 < linhas.length) candidatos.push(soDigitos(linhas[i] + ' ' + linhas[i + 1]));
+        for (let k = 0; k < candidatos.length; k++) {
+          const m = /\d{44}/.exec(candidatos[k]);
+          if (m && chaveNfceValida(m[0]) && cnpjValido(m[0].slice(6, 20))) return m[0].slice(6, 20);
+        }
+      }
+      const reCnpj = /\d{2}\s?[.,]?\s?\d{3}\s?[.,]?\s?\d{3}\s?[\/\\|]?\s?\d{4}\s?[-–]?\s?\d{2}/;
+      for (let i = 0; i < Math.min(linhas.length, 14); i++) {
+        if (corpoCupom && up && corpoCupom.test(up(linhas[i]))) break;
+        const m = reCnpj.exec(corrigirDigitosOCR(linhas[i]));
+        if (m && cnpjValido(m[0])) return m[0].replace(/\D/g, '');
+      }
+      return '';
+    }
+
+    // Entende o conteúdo do QR Code da NFC-e (endereço da Fazenda com a chave de acesso)
+    function interpretarQrNfce(payload) {
+      const txt = String(payload || '').trim();
+      const info = { url: '', chave: '', cnpj: '', valor: 0 };
+      const mUrl = /https?:\/\/[^\s]+/i.exec(txt);
+      if (mUrl) info.url = mUrl[0];
+      let p = '';
+      const mp = /[?&]p=([^&\s]+)/i.exec(txt);
+      if (mp) { try { p = decodeURIComponent(mp[1]); } catch (e) { p = mp[1]; } }
+      const partes = p ? p.split('|') : [];
+      let chave = (partes[0] || '').replace(/\D/g, '');
+      if (chave.length !== 44) {
+        const mch = /[?&]chNFe=(\d{44})/i.exec(txt) || /(\d{44})/.exec(txt.replace(/\s/g, ''));
+        chave = mch ? mch[1] : '';
+      }
+      if (chave && chaveNfceValida(chave)) {
+        info.chave = chave;
+        if (cnpjValido(chave.slice(6, 20))) info.cnpj = chave.slice(6, 20);
+      }
+      // Nota emitida em contingência: o próprio QR traz o valor total (versão 2: ...|dia|vNF|...; versão 1: &vNF=)
+      if (partes.length >= 8 && /^\d{1,2}$/.test(partes[3] || '') && /^\d+\.\d{2}$/.test(partes[4] || '')) info.valor = parseFloat(partes[4]);
+      const mv = /[?&]vNF=(\d+\.\d{2})(?:&|$)/i.exec(txt);
+      if (!info.valor && mv) info.valor = parseFloat(mv[1]);
+      if (!(info.valor > 0 && info.valor < 10000000)) info.valor = 0;
+      return info;
+    }
+
+    async function reduzirImagemParaQr(file, lado) {
+      const img = await carregarImagemArquivo(file);
+      const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+      const esc = Math.min(1, lado / Math.max(w, h));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(w * esc)); c.height = Math.max(1, Math.round(h * esc));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const blob = await new Promise(function(res) { c.toBlob(res, 'image/png'); });
+      return new File([blob], 'qr.png', { type: 'image/png' });
+    }
+
+    // Lê o QR Code da foto: primeiro o leitor do próprio navegador (Android/Chrome), depois a biblioteca html5-qrcode
+    async function lerQrDaImagem(file) {
+      try {
+        if ('BarcodeDetector' in window) {
+          const formatos = await BarcodeDetector.getSupportedFormats();
+          if (formatos.indexOf('qr_code') !== -1) {
+            const bmp = await createImageBitmap(file);
+            try {
+              const r = await new BarcodeDetector({ formats: ['qr_code'] }).detect(bmp);
+              if (r && r.length && r[0].rawValue) return r[0].rawValue;
+            } finally { if (bmp.close) bmp.close(); }
+          }
+        }
+      } catch (e) {}
+      if (typeof Html5Qrcode !== 'undefined') {
+        let area = document.getElementById('qrLeitorTemp');
+        if (!area) {
+          area = document.createElement('div');
+          area.id = 'qrLeitorTemp';
+          area.style.cssText = 'position:fixed;left:-9999px;top:0;width:300px;';
+          document.body.appendChild(area);
+        }
+        let leitor = null;
+        try {
+          leitor = new Html5Qrcode('qrLeitorTemp');
+          try { const t = await leitor.scanFile(file, false); if (t) return t; } catch (e) {}
+          try { const t = await leitor.scanFile(await reduzirImagemParaQr(file, 1400), false); if (t) return t; } catch (e) {}
+        } catch (e) {
+        } finally { try { if (leitor) leitor.clear(); } catch (e) {} }
+      }
+      return '';
+    }
+
+    function chamarServidorComTempo(nome, args, ms) {
+      return new Promise(function(resolve, reject) {
+        const t = setTimeout(function() { reject(new Error('tempo')); }, ms);
+        bioChamar(nome, args).then(function(r) { clearTimeout(t); resolve(r); }, function(e) { clearTimeout(t); reject(e); });
+      });
+    }
+
+    async function buscarRazaoSocialPorCnpj(cnpj) {
+      cnpj = String(cnpj || '').replace(/\D/g, '');
+      if (!USAR_CONSULTA_CNPJ || !cnpjValido(cnpj)) return '';
+      const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      const t = setTimeout(function() { if (ctl) ctl.abort(); }, 6000);
+      try {
+        const resp = await fetch('https://brasilapi.com.br/api/cnpj/v1/' + cnpj, ctl ? { signal: ctl.signal } : undefined);
+        if (!resp.ok) return '';
+        const d = await resp.json();
+        return String((d && (d.razao_social || d.nome_fantasia)) || '').replace(/\s+/g, ' ').trim().substring(0, 80);
+      } catch (e) { return ''; } finally { clearTimeout(t); }
+    }
+
+    // Dados pelo QR Code: Fazenda (razão social, total, pagamento) -> CNPJ da chave -> total que vem no próprio QR
+    async function dadosPeloQrCode(file, onStatus) {
+      onStatus('Procurando o QR Code do cupom...');
+      let payload = '';
+      try { payload = await lerQrDaImagem(file); } catch (e) {}
+      if (!payload) return null;
+      const info = interpretarQrNfce(payload);
+      if (!info.url && !info.cnpj && !(info.valor > 0)) return null;
+      const out = { loja: '', valor: info.valor, data: '', formapagto: '', cnpj: info.cnpj, fonte: 'qr', linhas: ['QR Code lido.'] };
+      if (info.url && USAR_CONSULTA_FAZENDA && bioTemServidor()) {
+        onStatus('Consultando a Secretaria da Fazenda...');
+        try {
+          const r = await chamarServidorComTempo('consultarNfce', [info.url], 20000);
+          if (r && r.status === 'success') {
+            out.loja = String(r.razaoSocial || '').replace(/\s+/g, ' ').trim().substring(0, 80);
+            if (r.valor > 0) out.valor = r.valor;
+            out.formapagto = r.formapagto || '';
+            out.data = r.data || '';
+            if (!out.cnpj && cnpjValido(r.cnpj)) out.cnpj = String(r.cnpj).replace(/\D/g, '');
+            if (out.loja || out.valor > 0) out.fonte = 'fazenda';
+            out.linhas.push('Fazenda: ' + (out.loja || '(sem nome)') + ' | total ' + (out.valor > 0 ? out.valor.toFixed(2) : '?') + (out.formapagto ? ' | ' + out.formapagto : ''));
+          } else {
+            out.linhas.push('Fazenda: ' + ((r && r.message) ? r.message : 'sem resposta') );
+          }
+        } catch (e) { out.linhas.push('Fazenda: sem resposta no tempo esperado.'); }
+      }
+      if (!out.loja && out.cnpj) {
+        onStatus('Buscando a razão social pelo CNPJ...');
+        out.loja = await buscarRazaoSocialPorCnpj(out.cnpj);
+        out.linhas.push('CNPJ ' + out.cnpj + (out.loja ? ': ' + out.loja : ': razão social não encontrada.'));
+      }
+      if (out.valor > 0 && info.valor > 0 && out.fonte === 'qr') out.linhas.push('Total no QR Code: ' + info.valor.toFixed(2));
+      return out;
+    }
+
+    // Junta o que veio do QR Code/Fazenda com o que o texto do cupom (OCR) trouxe
+    async function mesclarQrComOcr(qr, ocr, onStatus) {
+      const r = ocr ? Object.assign({}, ocr) : { loja: '', valor: 0, valorIncerto: false, confiancaValor: 0, data: '', formapagto: '', categoria: '', cnpj: '', texto: '' };
+      r.fonte = 'ocr';
+      if (qr) {
+        if (qr.valor > 0) { r.valor = qr.valor; r.valorIncerto = false; r.confiancaValor = 3; r.fonte = qr.fonte; }
+        if (qr.loja) { r.loja = qr.loja; r.categoria = ''; r.fonte = qr.fonte; }
+        if (qr.data) r.data = qr.data;
+        if (qr.formapagto) r.formapagto = qr.formapagto;
+        if (!r.cnpj && qr.cnpj) r.cnpj = qr.cnpj;
+      }
+      // o texto do cupom trouxe o CNPJ (chave de acesso) mas nenhum nome: busca a razão social
+      if (!r.loja && r.cnpj && !(qr && qr.cnpj === r.cnpj)) {
+        onStatus('Buscando a razão social pelo CNPJ...');
+        r.loja = await buscarRazaoSocialPorCnpj(r.cnpj);
+        if (r.loja) r.categoria = '';
+      }
+      if (!r.categoria && r.loja) r.categoria = categoriaPorPadraoAprendido(r.loja) || sugerirCategoriaPorTexto(r.loja);
+      r.texto = (qr ? qr.linhas.join('\n') + (ocr ? '\n\n' : '') : '') + (ocr ? ocr.texto : '');
+      return r;
+    }
+
+    // Ordem: QR Code (+ Fazenda) primeiro, que é rápido e exato; só lê o texto do cupom se faltar razão social ou total
+    async function processarImagemCupom(file, onStatus) {
+      const qr = await dadosPeloQrCode(file, onStatus);
+      if (qr && qr.loja && qr.valor > 0) return mesclarQrComOcr(qr, null, onStatus);
+      if (typeof Tesseract === 'undefined') {
+        if (qr && (qr.loja || qr.valor > 0)) return mesclarQrComOcr(qr, null, onStatus);
+        throw new Error('OCR indisponível');
+      }
+      const ocr = await lerCupomPorOcr(file, onStatus);
+      return mesclarQrComOcr(qr, ocr, onStatus);
+    }
+
     // Leitura única e rápida: uma passada de OCR, sem refazer nem reler o cupom em outras resoluções.
     // Se algo não for reconhecido, o formulário abre para o usuário completar digitando.
-    async function processarImagemCupom(file, onStatus) {
+    async function lerCupomPorOcr(file, onStatus) {
       if (typeof Tesseract === 'undefined') throw new Error('OCR indisponível');
       const img = await carregarImagemArquivo(file);
       onStatus('Preparando imagem do cupom...');
@@ -3913,8 +4153,10 @@
       if (!r.loja) faltando.push('estabelecimento');
       if (!(r.valor > 0)) faltando.push('valor');
       if (!r.categoria) faltando.push('categoria');
-      if (faltando.length) {
-        exibirToast('Cupom lido parcialmente. Complete: ' + faltando.join(', ') + '.', 'erro');
+      if (r.fonte === 'fazenda' && r.loja && r.valor > 0) {
+        exibirToast('Dados lidos na Secretaria da Fazenda pelo QR Code.' + (r.categoria ? ' Confira e salve.' : ' Escolha a categoria e salve.'), 'sucesso');
+      } else if (faltando.length) {
+        exibirToast('Cupom lido parcialmente. Complete: ' + faltando.join(', ') + '.' + (!r.loja ? ' Dica: inclua o QR Code e o topo do cupom na foto.' : ''), 'erro');
       } else if (r.valorIncerto) {
         exibirToast('Cupom lido. Confira o valor total antes de salvar.', 'erro');
       } else {
